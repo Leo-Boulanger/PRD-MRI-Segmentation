@@ -1,0 +1,25 @@
+<mxfile host="Electron" modified="2023-12-12T08:16:47.425Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/22.1.2 Chrome/114.0.5735.289 Electron/25.9.4 Safari/537.36" etag="x9YXJfR4Gkfs-HIQ-aC7" version="22.1.2" type="device">
+  <diagram name="Page-1" id="up5SpVWIg9o8TuGv0DSf">
+    <mxGraphModel dx="636" dy="376" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="WUy04WqQ4Grd-aKsP7rc-2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="WUy04WqQ4Grd-aKsP7rc-3" target="WUy04WqQ4Grd-aKsP7rc-5" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WUy04WqQ4Grd-aKsP7rc-3" value="Début" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="385" y="40" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="WUy04WqQ4Grd-aKsP7rc-4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="WUy04WqQ4Grd-aKsP7rc-5" target="WUy04WqQ4Grd-aKsP7rc-6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WUy04WqQ4Grd-aKsP7rc-5" value="Calcule la valeur de membership globale du voxel `j` pour chaque cluster&lt;br&gt;$$G_j =&amp;nbsp; \big\{\mu_{iM_j} \in \mathbb{R} \mid \forall i \in \{1,2,...,C\}\big\} = \left\{\left. \frac{ 1 }{ \sum_{\lambda&lt;br&gt;=1}^C {\left( \frac{ d^2_{ij} }{ d^2_{\lambda&lt;br&gt;j} } \right) }^{\frac{ 2 }{ (m-1) } } }\&amp;nbsp; \right| \ d^2_{ij} = \left\Vert x_j - V_i \right\Vert ^2 \right\}$$" style="whiteSpace=wrap;html=1;spacingTop=12;" parent="1" vertex="1">
+          <mxGeometry x="170" y="120" width="510" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="WUy04WqQ4Grd-aKsP7rc-6" value="Arrêt" style="ellipse;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="385" y="290" width="80" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

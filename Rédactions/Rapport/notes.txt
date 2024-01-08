@@ -1,0 +1,39 @@
+
+Les approches basées intensité ne nécessitent pas d'information en amont, mais sont donc sensibles aux artéfacts, et aux intensités ambigües. Il faudrait donc utiliser des méthodes qui ajoutent une connaîssance d'anatomie, comme la méthode d'atlas, pour obtenir des segmentation prenant en compte les formes et positions en plus de l'intensité.
+
+Le "Registering" lors du prétraitement pourra appliquer ses déformations sur l'atlas.
+Registration Efficiency and Accuracy through Learning Metric on Shape (REALMS)
+
+
+Recherche IRM animaux:
+[https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7270712/](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7270712/) : Manipulation / traitement IRM animaux
+[https://www.nature.com/articles/s41597-023-02126-x](https://www.nature.com/articles/s41597-023-02126-x) Squirrel monkeys analyse + dataset + git analyse
+[https://www.nature.com/articles/s41597-023-01942-5](https://www.nature.com/articles/s41597-023-01942-5) Dataset IRM souris
+[https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9937657/](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9937657/) Extraction / isolation du cerveau, Brain Extraction Net (BEN). Adaptable pour différentes espèces.
+[https://www.pmod.com/files/download/v36/doc/pbas/4996.htm](https://www.pmod.com/files/download/v36/doc/pbas/4996.htm) Mouse brain atlas
+[https://www.nature.com/articles/s41598-020-61665-0](https://www.nature.com/articles/s41598-020-61665-0) Dog brain atlas
+
+# Propositions:
+
+## Types de segmentation
+
+1. Segmentation par intensité interactif/automatique :
+
+	Segmente uniquement en fonction des mesures, pas de reconnaîssance de motifs. Simple d'implémentation, mais simple de résultats.
+
+2. Segmentation avec atlas :
+
+	La reconnaîssance de l'anatomie sera dépendante de la qualité et du niveau de détails de des atlas fournis. Nécessitera un atlas par espèce/anatomie. À éviter en cas de disparités de l'anatomie analysée.
+
+3. Segmentation par réseau neuronal :
+
+	Nécessite une base d'apprentissage (de préférable au moins ~20 références par structure), la qualité des résultats dépendront de la quantité et la diversité de la base d'apprentissage fournis.
+
+## Méthodes de segmentation:
+
+1. Segmentation hybride Atlas + par intensité
+
+2. [https://doi.org/10.1002/mp.15032](https://doi.org/10.1002/mp.15032) : Segmentation 3D de tumeurs (deep supervised U-Net) pour segmenter UNE structure spécifique
+
+3. Segmentation par intensité, sans pré-connaissance
+- 

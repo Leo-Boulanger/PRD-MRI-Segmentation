@@ -1,0 +1,7 @@
+Remarques soutenances décembre 2023
+
+- Commencer en présentant les termes techniques, IRM, image d'IRM, segmentation, clustering
+- Illustrer le fonctionnement de l'algorithme de façon pédagogique pour les néophytes
+- Présenter le Gantt après les spécifications
+- Inclure chaque spectateur du public, même ceux que l'on connaît et qui connaîssent déjà le sujet
+- Inclure la référence des documents présenté (pour la méthode UMSFCM)

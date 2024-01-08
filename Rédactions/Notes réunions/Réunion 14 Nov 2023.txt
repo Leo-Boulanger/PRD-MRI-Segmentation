@@ -1,0 +1,13 @@
+14 Nov 2023:
+
+
+Le nombre de ROI est variable de juste quelques unes, jusqu'à plus d'une centaine.
+
+Le prétraitement ne doit pas déformer les données, éviter de perdre certaines données.
+
+Les ROI ne sont pas identifiées uniquement par leur niveau de gris, aussi pas leur forme et position.
+
+Les mesures peuvent avoir des tailles totales différentes en voxels => redimensionner en échelle plus haute / basse ?
+
+J'avais exclu les méthodes de machine & deep learning après la discussion avec Antoine le jeudi 9 novembre.
+Le deep learning est ok mais nécessite une base d'entraînement -> si que humain / pas assez d'animaux alors les résultats seront probablement incorrects. => Demander aux clients une base d'entraînement. Si possible, au moins un exemple de la ROI de la cible.
