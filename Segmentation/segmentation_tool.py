@@ -32,6 +32,8 @@ if __name__ == "__main__":
                                thresh=args.threshold,
                                sp_rate=args.spatial_rate)
     config.setup()
-    print(config)
+    print("### Starting the program with these settings ###" + '\n'
+          + str(config) + '\n')
     segmentation = UMSFCM(config)
     segmentation.import_mri_data()
+    segmentation.show_mri(0)
