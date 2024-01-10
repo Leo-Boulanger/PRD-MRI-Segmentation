@@ -12,7 +12,8 @@ class UMSFCM:
     def __init__(self, configuration, logger=None) -> None:
         self.configuration = configuration
         # self.logger = logger
-        self.mri_data = np.array
+        self.mri_data = self.import_mri_data()
+        self.clusters_data = np.empty(configuration.nb_clusters)
 
     @staticmethod
     def remove_empty_areas(array: np.ndarray) -> np.ndarray:
@@ -60,7 +61,7 @@ class UMSFCM:
             fig.show()
 
         else:
-            # Prepare the figures and subfigures to display the MRI
+            # Prepare the figures and sub-figures to display the MRI
             fig = plt.figure(figsize=(10, 10), layout='constrained')
             subfigures = fig.subfigures(1, 1)
 
@@ -81,3 +82,37 @@ class UMSFCM:
                 sp.imshow(final_array[i, ...], cmap='gray')
             plt.subplots_adjust(wspace=0, hspace=0)
             plt.show()
+
+    def local_membership(self, mask_data: np.ndarray, cluster_values: np.ndarray) -> (np.ndarray, np.ndarray):
+        """
+        Compute the local membership values of a voxel using its neighbours and the cluster values,
+        and compute a weight .
+        :param mask_data: flatten numpy array of the voxel analysed, and its neighbours
+        :param cluster_values: 1D numpy array of the
+        :return:
+        """
+        nb_data = len(mask_data)
+        nb_clusters = len(cluster_values)
+        distances = np.zeros((nb_clusters, nb_data))
+        mins = np.zeros((nb_clusters, nb_data))
+        local_memberships = np.zeros(nb_clusters)
+        weights = np.zeros(nb_clusters)
+
+        # Compute the intensity distance between each neighbour and each cluster
+        # distances = {D_(iM_j) for all i in {0, ...nb_clusters)} | where D_(iM_j) = {abs(x_k - V_i)} for all k in M_j}
+        for i in range(nb_clusters):
+            for k in range(nb_data):
+                distances[i, k] = abs(mask_data[k] - cluster_values[i])
+
+        # Search for each neighbour, the cluster it is closest to
+        for i in range(nb_clusters):
+            for k in range(nb_data):
+                mins[i, k] = 1 if distances[i, k] == min(distances[:, k]) else 0
+
+        # Compute, for each cluster, the ratio between the sum of its minimal distances
+        # and the sum of the minimal distances of all clusters
+        for i in range(nb_clusters):
+            local_memberships[i] = sum(distances[i] * mins[i]) / sum(distances * mins)
+            weights = sum(distances[i] * mins[i]) / nb_data
+
+        return local_memberships, weights

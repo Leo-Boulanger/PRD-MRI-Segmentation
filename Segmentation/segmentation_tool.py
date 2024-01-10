@@ -2,6 +2,7 @@ import validation_tests.validation
 from source_code import configuration as cfg, logger as log
 from source_code.segmentation_umsf_cmeans import UMSFCM
 import argparse
+import numpy as np
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MRI segmentation tool using a modified spatial fuzzy c-means method.")
@@ -36,4 +37,7 @@ if __name__ == "__main__":
           + str(config) + '\n')
     segmentation = UMSFCM(config)
     segmentation.import_mri_data()
-    segmentation.show_mri(0)
+    np.random.random_sample()
+    mask = segmentation.mri_data[60:63, 60:63, 60:63].flatten()
+    clusters = np.random.randint(255, size=(4))
+    segmentation.local_membership(mask, clusters)
