@@ -37,7 +37,4 @@ if __name__ == "__main__":
           + str(config) + '\n')
     segmentation = UMSFCM(config)
     segmentation.import_mri_data()
-    np.random.random_sample()
-    mask = segmentation.mri_data[60:63, 60:63, 60:63].flatten()
-    clusters = np.random.randint(255, size=(4))
-    segmentation.local_membership(mask, clusters)
+    segmentation.start_process()
