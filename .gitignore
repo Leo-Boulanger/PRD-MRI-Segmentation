@@ -1,6 +1,9 @@
 # Pre-development ignores :
 Pre_dev_segmentation/
 Reprise_existant/
+Rédactions/
+*.png
+*.pdf
 
 # Default GIT Python .gitignore :
 # Byte-compiled / optimized / DLL files
