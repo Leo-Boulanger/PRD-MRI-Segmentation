@@ -5,6 +5,9 @@ from matplotlib import pyplot as plt
 import math
 import time
 from plotly import express as xp
+import joblib
+import multiprocessing
+import sys
 
 
 class UMSFCM:
@@ -62,45 +65,6 @@ class UMSFCM:
         # Set the result to the object's attribute mri_data
         self.mri_data = cleaned_array
 
-    def show_mri(self, axis: int, use_slider: bool = True) -> None:
-        """
-        Display the MRI
-        :param axis: ID of the axis to iterate on (0: X, 1: Y, 2: Z)
-        :param use_slider: True (default): display layers one by one, using a slider to switch between them,
-                           False: display all layers at once
-        """
-        # Transpose the data to the axis passed in parameter
-        final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
-
-        # Show the MRI slices using the plotly module
-        if use_slider:
-            final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
-            fig = xp.imshow(final_array, animation_frame=0, color_continuous_scale="gray")
-            fig.show()
-
-        else:
-            # Prepare the figures and sub-figures to display the MRI
-            fig = plt.figure(figsize=(10, 10), layout='constrained')
-            subfigures = fig.subfigures(1, 1)
-
-            # Compute the subplot dimensions according to the ratio defined right below
-            ratio = (2, 1)  # You can change the display ratio by modifying these values
-            img_ratio = final_array.shape[1] / final_array.shape[2]
-            ratio = (ratio[0] * img_ratio, ratio[1] / img_ratio)
-            height = math.sqrt(final_array.shape[0] * ratio[1] / ratio[0])
-            width = height * ratio[0] / ratio[1]
-
-            # Create the subplots, and display every slices on the figure
-            subplots = subfigures.subplots(math.ceil(height), math.ceil(width))
-            for i, sp in enumerate(subplots.flat):
-                sp.set_axis_off()
-                sp.set_aspect('equal')
-                if i >= final_array.shape[0]:
-                    continue
-                sp.imshow(final_array[i, ...], cmap='gray')
-            plt.subplots_adjust(wspace=0, hspace=0)
-            plt.show()
-
     def local_membership(self, mask_data: np.ndarray) -> (np.ndarray, np.ndarray):
         """
         Compute the local membership values of a voxel using its neighbours and the cluster values,
@@ -116,7 +80,7 @@ class UMSFCM:
         """
 
         # Initialize the variables
-        nb_data = len(mask_data)
+        nb_data = mask_data.size
         nb_clusters = self.clusters_data.size
         distances = np.empty((nb_clusters, nb_data))
         mins = np.empty((nb_clusters, nb_data))
@@ -137,7 +101,7 @@ class UMSFCM:
         # Compute, for each cluster, the ratio between the sum of its minimal distances
         # and the sum of the minimal distances of all clusters
         for i, v_i in enumerate(self.clusters_data):
-            local_memberships[i] = np.sum(v_i * mins[i]) / np.sum(distances * mins)
+            local_memberships[i] = np.sum(v_i * mins[i]) / max(np.sum(distances * mins), 0.001)
             weights = np.sum(distances[i] * mins[i]) / nb_data
 
         return local_memberships, weights
@@ -170,8 +134,13 @@ class UMSFCM:
             sum_distances = np.sum(distances)
             for i, v_i in enumerate(self.clusters_data):
                 # Then, calculate the global membership of the voxel x_j for each cluster
-                global_memberships[j, i] = (1 / ((distances[j, i] / sum_distances) ** (
-                                            2 / (self.configuration.fuzzifier - 1))))
+                global_memberships[j, i] = (1 /
+                                            max((distances[j, i] /
+                                                 max(sum_distances, 0.001,)) ** (
+                                                        2 / max(self.configuration.fuzzifier - 1, 0.001)
+                                                                                )
+                                                , 0.001)
+                                            )
         return global_memberships, distances
 
     def combined_membership(self, global_memberships: np.ndarray, local_memberships: np.ndarray) -> np.ndarray:
@@ -253,8 +222,19 @@ class UMSFCM:
 
         # V_i = sum_(j=1)^(nr*nc*ns)(u_(ij) ** m * x_j) / sum_(j=1)^(nr*nc*ns)(u_(ij) ** m)
         for i in range(new_clusters.size):
-            new_clusters[i] = sum(combined_memberships[:, i] * self.mri_data.flatten()) / sum(combined_memberships[:, i])
+            new_clusters[i] = sum(combined_memberships[:, i] * self.mri_data.flatten()) / sum(
+                combined_memberships[:, i])
         return new_clusters
+
+    def worker_local_membership(self, local_memberships, weights, x):
+        worker_time = time.time()
+        loop_id = x*self.mri_data.shape[0]
+        for y in range(self.mri_data.shape[1]):
+            for z in range(self.mri_data.shape[2]):
+                mask = self.mri_data[x, y, z].flatten()
+                local_memberships[loop_id], weights[loop_id] = self.local_membership(mask)
+                loop_id += 1
+        print(f"Time taken for mri_data[{x}, :, :]: {(time.time() - worker_time):0.2f}s ")
 
     def start_process(self):
         """
@@ -265,23 +245,32 @@ class UMSFCM:
         max_iter_debug = 4
         current_iter = 1
 
-        # Initialize variables
-        segmentation = np.empty_like(self.mri_data)
-        local_memberships = np.empty((self.mri_data.size, self.clusters_data.size))
-        weights = np.empty((self.mri_data.size, self.clusters_data.size))
-        global_memberships = np.empty((self.mri_data.size, self.clusters_data.size))
-        distances = np.empty((self.mri_data.size, self.clusters_data.size))
+        cpu_count = multiprocessing.cpu_count()
+        print(f'Using {cpu_count} threads')
+
+        # Assertions
+        print(self.mri_data.size)
+        print(self.clusters_data.size)
 
         # Get clusters
         self.clusters_data = np.random.randint(255, size=self.configuration.nb_clusters)
-        # Compute the local memberships
-        voxels = self.mri_data.flatten()
+
+        # Initialize variables
+        local_memberships = np.empty((self.mri_data.size, self.clusters_data.size))
+        weights = np.empty((self.mri_data.size, self.clusters_data.size))
+        mri_shape = self.mri_data.shape
+        print(f"MRI shape: {mri_shape}")
 
         while True:
-            print(f"Iteration {current_iter}...", end='\r')
-            for j in range(voxels.size):
-                mask = self.mri_data[j-1:j+1, j-1:j+1, j-1:j+1]
-                local_memberships[j], weights[j] = self.local_membership(mask)
+            print(f"Iteration {current_iter}...")
+
+            # Compute the local memberships
+            total_time = time.time()
+            joblib.Parallel(n_jobs=int(multiprocessing.cpu_count()), backend='threading')(
+                joblib.delayed(self.worker_local_membership)(local_memberships, weights, x)
+                for x in range(mri_shape[0])
+            )
+            print(f'total time = {(time.time() - total_time):.2f}s')
 
             # Compute the global memberships
             global_memberships, distances = self.global_membership()
@@ -308,7 +297,7 @@ class UMSFCM:
                       + "found segmentation should be optimal.")
                 break
 
-            if current_iter+1 > max_iter_debug:
+            if current_iter + 1 > max_iter_debug:
                 print(f"Iteration {current_iter} done."
                       + "Max iteration reached..")
                 break
@@ -322,3 +311,48 @@ class UMSFCM:
 
         return self.segmentation, self.clusters_data
 
+    def show_mri(self, axis: int, use_slider: bool = True) -> None:
+        """
+        Display the MRI
+        :param axis: ID of the axis to iterate on (0: X, 1: Y, 2: Z)
+        :param use_slider: True (default): display layers one by one, using a slider to switch between them,
+                           False: display all layers at once
+        """
+        # Transpose the data to the axis passed in parameter
+        final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
+
+        # Show the MRI slices using the plotly module
+        if use_slider:
+            final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
+            fig = xp.imshow(final_array, animation_frame=0, color_continuous_scale="gray")
+            fig.show()
+
+        else:
+            # Prepare the figures and sub-figures to display the MRI
+            fig = plt.figure(figsize=(10, 10), layout='constrained')
+            subfigures = fig.subfigures(1, 1)
+
+            # Compute the subplot dimensions according to the ratio defined right below
+            ratio = (2, 1)  # You can change the display ratio by modifying these values
+            img_ratio = final_array.shape[1] / final_array.shape[2]
+            ratio = (ratio[0] * img_ratio, ratio[1] / img_ratio)
+            height = math.sqrt(final_array.shape[0] * ratio[1] / ratio[0])
+            width = height * ratio[0] / ratio[1]
+
+            # Create the subplots, and display every slices on the figure
+            subplots = subfigures.subplots(math.ceil(height), math.ceil(width))
+            for i, sp in enumerate(subplots.flat):
+                sp.set_axis_off()
+                sp.set_aspect('equal')
+                if i >= final_array.shape[0]:
+                    continue
+                sp.imshow(final_array[i, ...], cmap='gray')
+            plt.subplots_adjust(wspace=0, hspace=0)
+            plt.show()
+
+    def __str__(self):
+        return (f"Configuration : \n{self.configuration}\n"
+                f"Logger : \n{self.logger}\n"
+                f"MRI data size : \n{self.mri_data.size}\n"
+                f"Clusters : \n{self.clusters_data}\n"
+                f"Segmentation: \n{self.segmentation}\n")
