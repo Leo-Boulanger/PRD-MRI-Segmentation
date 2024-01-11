@@ -13,28 +13,36 @@ class UMSFCM:
         self.logger = logger
         self.mri_data = None
         self.clusters_data = np.empty(configuration.nb_clusters)
+        self.segmentation = None
 
     @staticmethod
     def remove_empty_areas(array: np.ndarray) -> np.ndarray:
         """
         Remove empty slices inside an array
         :param array: the array to clean
-        :return:
+            should be defined like : ( x_00  x_01  ... x_0nc
+                                       x_10  x_11  ... x_1nc
+                                       ...   ...   ... ...
+                                       x_nr0 x_nr1 ... x_nrnc )
+            where nc is the number of columns, and nr the number of rows
+        :return: a 3d numpy.ndarray without any row of zeros in any axis
         """
-
+        # Get the number of dimensions, and prepare the transpose target
         nb_dims = len(array.shape)
+        np.roll(np.array(range(nb_dims)), 1)
         for d in range(nb_dims):
             indexes = []
             tmp = np.transpose(array, (2, 0, 1))
-            for i in range(tmp.shape[0]):
+            for i in range(tuple(tmp.shape)[0]):
                 if not np.any(tmp[i, ...]):
                     indexes.append(i)
             array = np.delete(tmp, indexes, 0)
-        return np.transpose(array, (2, 0, 1))
+        return array
 
     def import_mri_data(self) -> None:
         """
-        Import a NIfTI file from its path set in the configuration, and remove the empty boundaries.
+        Import a NIfTI file from its path set in the object's configuration, remove the empty boundaries,
+        and set the result to the object's "mri_data" attribute.
         """
 
         # Try to load the NIfTI file from the path set in the configuration
@@ -57,7 +65,7 @@ class UMSFCM:
     def show_mri(self, axis: int, use_slider: bool = True) -> None:
         """
         Display the MRI
-        :param axis: ID of the axis to iterate on
+        :param axis: ID of the axis to iterate on (0: X, 1: Y, 2: Z)
         :param use_slider: True (default): display layers one by one, using a slider to switch between them,
                            False: display all layers at once
         """
@@ -75,7 +83,7 @@ class UMSFCM:
             fig = plt.figure(figsize=(10, 10), layout='constrained')
             subfigures = fig.subfigures(1, 1)
 
-            # Compute the subplot dimensions according to the ratio right below
+            # Compute the subplot dimensions according to the ratio defined right below
             ratio = (2, 1)  # You can change the display ratio by modifying these values
             img_ratio = final_array.shape[1] / final_array.shape[2]
             ratio = (ratio[0] * img_ratio, ratio[1] / img_ratio)
@@ -98,6 +106,11 @@ class UMSFCM:
         Compute the local membership values of a voxel using its neighbours and the cluster values,
         and compute the weights of the local membership values.
         :param mask_data: flatten numpy array of the voxel analysed, and its neighbours
+            should be defined like : ( x_00  x_01  ... x_0mc
+                                       x_10  x_11  ... x_1mc
+                                       ...   ...   ... ...
+                                       x_mr0 x_mr1 ... x_mrmc )
+                   where mc is the number of columns, and mr the number of rows
         :return:    - a 1d numpy.ndarray of the local membership to each cluster
                     - a 1d numpy.ndarray of the weights
         """
@@ -133,7 +146,16 @@ class UMSFCM:
         """
         Compute the global membership for every voxel of the MRI
         :return:    - a 2d numpy.ndarray of the global membership values for each voxel to each cluster
+                        format : ( µ_00 µ_10 ... µ_0C
+                                   µ_10 µ_11 ... µ_1C
+                                   ...  ...  ... ...
+                                   µ_X0 µ_X1 ... µ_XC )
+                        where C is the number of clusters, and X the number of voxels.
                     - a 2d numpy.ndarray of the distances computed
+                        format : ( d_00 d_10 ... d_0C
+                                   d_10 d_11 ... d_1C
+                                   ...  ...  ... ...
+                                   d_X0 d_X1 ... d_XC )
         """
 
         # Initialize the variables
@@ -156,8 +178,21 @@ class UMSFCM:
         """
         Compute a combination of the global and local membership values of each voxel
         :param global_memberships: a 2d numpy.ndarray of the global memberships
+                should be defined like : ( µ_00 µ_10 ... µ_0C
+                                           µ_10 µ_11 ... µ_1C
+                                           ...  ...  ... ...
+                                           µ_X0 µ_X1 ... µ_XC )
+                where C is the number of clusters, and X the number of voxels.
         :param local_memberships: a 2d numpy.ndarray of the local memberships
+                should be defined like : ( l_00 l_10 ... l_0C
+                                           l_10 l_11 ... l_1C
+                                           ...  ...  ... ...
+                                           l_X0 l_X1 ... l_XC )
         :return: a 2d numpy.ndarray of the combined memberships
+                format : ( u_00 u_10 ... u_0C
+                           u_10 u_11 ... u_1C
+                           ...  ...  ... ...
+                           u_X0 u_X1 ... u_XC )
         """
 
         # Calculate a product between the global and local memberships, and apply a modifier to them
@@ -173,10 +208,27 @@ class UMSFCM:
         """
         Compute the objective function
         :param global_memberships: a 2d numpy.ndarray of the global memberships
+                should be defined like : ( µ_00 µ_10 ... µ_0C
+                                           µ_10 µ_11 ... µ_1C
+                                           ...  ...  ... ...
+                                           µ_X0 µ_X1 ... µ_XC )
+                where C is the number of clusters, and X the number of voxels.
         :param distances: a 2d numpy.ndarray of the distances between voxel and clusters
+                should be defined like : ( d_00 d_10 ... d_0C
+                                           d_10 d_11 ... d_1C
+                                           ...  ...  ... ...
+                                           d_X0 d_X1 ... d_XC )
         :param local_memberships: a 2d numpy.ndarray of the local memberships
+                should be defined like : ( l_00 l_10 ... l_0C
+                                           l_10 l_11 ... l_1C
+                                           ...  ...  ... ...
+                                           l_X0 l_X1 ... l_XC )
         :param weighted_data: a 2d numpy.ndarray of the weights of the local memberships
-        :return: the value of the objective function
+                should be defined like : ( w_00 w_10 ... w_0C
+                                           w_10 w_11 ... w_1C
+                                           ...  ...  ... ...
+                                           w_X0 w_X1 ... w_XC )
+        :return: the result of the objective function
         """
 
         # J = sum( µ_(ij)**m * d_(ij)**2 ) + τ * sum( l_(iM_j)**m * w_(iM_j)**2) )
@@ -185,9 +237,88 @@ class UMSFCM:
                 np.sum(local_memberships ** self.configuration.fuzzifier * weighted_data ** 2))
 
     def compute_new_clusters(self, combined_memberships: np.ndarray):
-        new_clusters = numpy.empty_like(self.clusters_data)
-        for i in range(new_clusters):
-            new_clusters[i] = sum(combined_memberships * self.mri_data)
+        """
+        Compute new clusters from the combined memberships
+        :param combined_memberships:
+                should be defined like : ( u_00 u_10 ... u_0C
+                                           u_10 u_11 ... u_1C
+                                           ...  ...  ... ...
+                                           u_X0 u_X1 ... u_XC )
+                where C is the number of clusters, and X the number of voxels.
+        :return: a 1d numpy.ndarray with the new value of each cluster
+        """
 
+        # Initialize variables
+        new_clusters = numpy.empty_like(self.clusters_data)
+
+        # V_i = sum_(j=1)^(nr*nc*ns)(u_(ij) ** m * x_j) / sum_(j=1)^(nr*nc*ns)(u_(ij) ** m)
+        for i in range(new_clusters.size):
+            new_clusters[i] = sum(combined_memberships[:, i] * self.mri_data.flatten()) / sum(combined_memberships[:, i])
         return new_clusters
+
+    def start_process(self):
+        """
+
+        :return:
+        """
+        print("Starting segmentation process...")
+        max_iter_debug = 4
+        current_iter = 1
+
+        # Initialize variables
+        segmentation = np.empty_like(self.mri_data)
+        local_memberships = np.empty((self.mri_data.size, self.clusters_data.size))
+        weights = np.empty((self.mri_data.size, self.clusters_data.size))
+        global_memberships = np.empty((self.mri_data.size, self.clusters_data.size))
+        distances = np.empty((self.mri_data.size, self.clusters_data.size))
+
+        # Get clusters
+        self.clusters_data = np.random.randint(255, size=self.configuration.nb_clusters)
+        # Compute the local memberships
+        voxels = self.mri_data.flatten()
+
+        while True:
+            print(f"Iteration {current_iter}...", end='\r')
+            for j in range(voxels.size):
+                mask = self.mri_data[j-1:j+1, j-1:j+1, j-1:j+1]
+                local_memberships[j], weights[j] = self.local_membership(mask)
+
+            # Compute the global memberships
+            global_memberships, distances = self.global_membership()
+
+            # Compute the combined memberships
+            combined_memberships = self.combined_membership(global_memberships, local_memberships)
+
+            # Calculate the objective function
+            objective = self.objective_function(global_memberships, distances, local_memberships, weights)
+
+            # If objective function is optimal, exit the loop
+            if objective <= 1:
+                print(f"Iteration {current_iter} done."
+                      + "Optimal segmentation found.")
+                break
+
+            # If not optimal, compute new clusters
+            new_clusters = self.compute_new_clusters(combined_memberships)
+
+            # If the difference between old and new clusters is below the threshold, exit the loop
+            if abs(np.mean(self.clusters_data) - np.mean(new_clusters)) <= self.configuration.threshold:
+                print(f"Iteration {current_iter} done."
+                      + "New clusters below threshold, "
+                      + "found segmentation should be optimal.")
+                break
+
+            if current_iter+1 > max_iter_debug:
+                print(f"Iteration {current_iter} done."
+                      + "Max iteration reached..")
+                break
+
+            self.clusters_data = new_clusters
+            print(f"Iteration {current_iter} done.")
+            current_iter += 1
+
+        # Compute the segmentation from the combined memberships
+        self.segmentation = combined_memberships.min(axis=1).reshape(self.mri_data.shape)
+
+        return self.segmentation, self.clusters_data
 

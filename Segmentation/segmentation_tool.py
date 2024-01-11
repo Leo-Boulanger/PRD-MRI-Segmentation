@@ -10,7 +10,7 @@ if __name__ == "__main__":
                         help="Path to the MRI file. (should be .nii or .nii.gz)")
     parser.add_argument("-o", "--output-dir", dest="output_directory", type=str,
                         help="Path where to write the output of the program.")
-    parser.add_argument("-n", "--nb-clusters", dest="nb_clusters", type=str,
+    parser.add_argument("-n", "--nb-clusters", dest="nb_clusters", type=int,
                         help="The number of clusters to search.")
     parser.add_argument("-q", dest="local_modifier", type=float,
                         help="The value of the local modifier.")

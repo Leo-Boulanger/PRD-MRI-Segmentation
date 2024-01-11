@@ -3,6 +3,7 @@ class Configuration:
                  nb_c: int = None, sp_rate: float = None,
                  q: float = None, p: float = None,
                  fuzz: float = None, thresh: float = None
+
                  ) -> None:
         self.mri_path = mri
         self.output_directory = out_dir
@@ -14,14 +15,14 @@ class Configuration:
         self.spatial_rate = sp_rate
 
     def __str__(self):
-        return ("mri_path: " + str(self.mri_path) + '\n' +
-                "output_directory: " + str(self.output_directory) + '\n' +
-                "nb_clusters: " + str(self.nb_clusters) + '\n' +
-                "local_modifier: " + str(self.local_modifier) + '\n' +
-                "global_modifier: " + str(self.global_modifier) + '\n' +
-                "fuzzifier: " + str(self.fuzzifier) + '\n' +
-                "threshold: " + str(self.threshold) + '\n' +
-                "spatial_rate: " + str(self.spatial_rate))
+        return (f"mri_path: {self.mri_path} {type(self.mri_path)} \n" +
+                f"output_directory: {self.output_directory} {type(self.output_directory)}\n" +
+                f"nb_clusters: {self.nb_clusters} {type(self.nb_clusters)}\n"+
+                f"local_modifier: {self.local_modifier} {type(self.local_modifier)}\n" +
+                f"global_modifier: {self.global_modifier} {type(self.global_modifier)}\n" +
+                f"fuzzifier: {self.fuzzifier} {type(self.fuzzifier)}\n" +
+                f"threshold: {self.threshold} {type(self.threshold)}\n" +
+                f"spatial_rate:  {self.spatial_rate} {type(self.spatial_rate)}\n")
 
     @staticmethod
     def ask_user(text: str, expected_type: type, variable_name: str, min_value=None, max_value=None) -> object:
