@@ -227,6 +227,9 @@ class UMSFCM:
         return new_clusters
 
     def worker_local_membership(self, local_memberships, weights, x):
+        print(local_memberships.flags)
+        local_memberships.setflags(write=1)
+        weights.setflags(write=1)
         worker_time = time.time()
         loop_id = x*self.mri_data.shape[0]
         for y in range(self.mri_data.shape[1]):
@@ -262,15 +265,35 @@ class UMSFCM:
         print(f"MRI shape: {mri_shape}")
 
         while True:
-            print(f"Iteration {current_iter}...")
+            print(f"## Iteration {current_iter} ##")
 
             # Compute the local memberships
+
+            print(local_memberships[0])
             total_time = time.time()
-            joblib.Parallel(n_jobs=int(multiprocessing.cpu_count()), backend='threading')(
+            joblib.Parallel(n_jobs=int(multiprocessing.cpu_count()))(
                 joblib.delayed(self.worker_local_membership)(local_memberships, weights, x)
                 for x in range(mri_shape[0])
             )
             print(f'total time = {(time.time() - total_time):.2f}s')
+            print(local_memberships[0])
+
+            loop_id = 0
+            total_time = time.time()
+            for x in range(mri_shape[0]):
+                tic = time.time()
+                print(f"computing [{x},:,:], time left: ", end='\r')
+                for y in range(mri_shape[1]):
+                    for z in range(mri_shape[2]):
+                        mask = self.mri_data[x, y, z].flatten()
+                        local_memberships[loop_id], weights[loop_id] = self.local_membership(mask)
+                        loop_id += 1
+                toc = time.time()
+                remaining_time = (mri_shape[0] - (x + 1)) * (toc - tic)
+                print(f"computing [{x}, :, :], time left: {remaining_time:0.2f}s ", end='\r')
+
+            print(f'total time = {(time.time() - total_time):.2f}s')
+            print(local_memberships[0])
 
             # Compute the global memberships
             global_memberships, distances = self.global_membership()
