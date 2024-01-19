@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import math
 import time
 from plotly import express as xp
+from plotly import graph_objects as go
 import joblib
 import multiprocessing
 import sys
@@ -12,10 +13,10 @@ import sys
 
 class UMSFCM:
     def __init__(self, configuration, logger=None) -> None:
+        self.clusters_data = np.empty(configuration.nb_clusters)
         self.configuration = configuration
         self.logger = logger
         self.mri_data = None
-        self.clusters_data = np.empty(configuration.nb_clusters)
         self.segmentation = None
 
     @staticmethod
@@ -136,9 +137,9 @@ class UMSFCM:
                 # Then, calculate the global membership of the voxel x_j for each cluster
                 global_memberships[j, i] = (1 /
                                             max((distances[j, i] /
-                                                 max(sum_distances, 0.001,)) ** (
+                                                 max(sum_distances, 0.001, )) ** (
                                                         2 / max(self.configuration.fuzzifier - 1, 0.001)
-                                                                                )
+                                                )
                                                 , 0.001)
                                             )
         return global_memberships, distances
@@ -205,7 +206,7 @@ class UMSFCM:
                 self.configuration.spatial_rate *
                 np.sum(local_memberships ** self.configuration.fuzzifier * weighted_data ** 2))
 
-    def compute_new_clusters(self, combined_memberships: np.ndarray):
+    def compute_new_clusters(self, combined_memberships: np.ndarray) -> np.ndarray:
         """
         Compute new clusters from the combined memberships
         :param combined_memberships:
@@ -231,7 +232,7 @@ class UMSFCM:
         local_memberships.setflags(write=1)
         weights.setflags(write=1)
         worker_time = time.time()
-        loop_id = x*self.mri_data.shape[0]
+        loop_id = x * self.mri_data.shape[0]
         for y in range(self.mri_data.shape[1]):
             for z in range(self.mri_data.shape[2]):
                 mask = self.mri_data[x, y, z].flatten()
@@ -334,23 +335,57 @@ class UMSFCM:
 
         return self.segmentation, self.clusters_data
 
-    def show_mri(self, axis: int, use_slider: bool = True) -> None:
+    def show_mri(self, axis: int = 0, nb_rot90: int = 0,
+                 volume: bool = False, volume_slice: int = 0, volume_opacity: float = 1.0,
+                 slider: bool = False, all_slices: bool = False, histogram: bool = False) -> None:
         """
         Display the MRI
         :param axis: ID of the axis to iterate on (0: X, 1: Y, 2: Z)
-        :param use_slider: True (default): display layers one by one, using a slider to switch between them,
+        :param nb_rot90: number of times the MRI is rotated by 90 degrees
+        :param volume: display the MRI in a 3D space
+        :param volume_slice: display the MRI to the
+        :param slider: True (default): display layers one by one, using a slider to switch between them,
                            False: display all layers at once
+        :param histogram: True: display a histogram of the MRI
+                          False (default): does not display the histogram
         """
+        if histogram:
+            hist_data = self.mri_data.flatten()
+            fig = xp.histogram(hist_data[hist_data > 0])
+            fig.show()
+
         # Transpose the data to the axis passed in parameter
         final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
+        final_array = np.rot90(final_array, nb_rot90, (1, 2))
+
+        if volume:
+            if volume_slice > 0:
+                final_array = final_array[:volume_slice, :, :]
+            coordinates = np.array([(i, j, k) for i in range(final_array.shape[0])
+                                    for j in range(final_array.shape[1])
+                                    for k in range(final_array.shape[2])])
+            mri_x = coordinates[..., 0]
+            mri_y = coordinates[..., 1]
+            mri_z = coordinates[..., 2]
+            fig = go.Figure(
+                go.Volume(
+                    x=mri_x,
+                    y=mri_y,
+                    z=mri_z,
+                    value=final_array.flatten(),
+                    isomin=1,
+                    opacity=volume_opacity,
+                    colorscale=[[i/255, f'rgb({i},{i},{i})'] for i in range(256)]
+                )
+            )
+            fig.show()
 
         # Show the MRI slices using the plotly module
-        if use_slider:
-            final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
+        if slider:
             fig = xp.imshow(final_array, animation_frame=0, color_continuous_scale="gray")
             fig.show()
 
-        else:
+        if all_slices:
             # Prepare the figures and sub-figures to display the MRI
             fig = plt.figure(figsize=(10, 10), layout='constrained')
             subfigures = fig.subfigures(1, 1)

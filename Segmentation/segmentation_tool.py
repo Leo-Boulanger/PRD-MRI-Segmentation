@@ -37,4 +37,6 @@ if __name__ == "__main__":
           + str(config) + '\n')
     segmentation = UMSFCM(config)
     segmentation.import_mri_data()
-    segmentation.start_process()
+    segmentation.show_mri(axis=0, volume=True, volume_slice=46, volume_opacity=0.8,
+                          slider=False, all_slices=False, nb_rot90=0)
+    #segmentation.start_process()
