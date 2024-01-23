@@ -4,31 +4,39 @@ from validation_tests.test_segmentation_umsf_cmeans import Test_UMSFCM
 
 
 def validate_tests():
-    print('Validation started.')
+    print('------------------')
+    print('Validation started')
 
     # Initialize variables
     total_nb_passed = 0
     failures_list = []
 
+    print('Errors:', end='\r')
     # Check the tests from test_segmentation_umsf_cmeans
     test_umsfcm = Test_UMSFCM()
     test_umsfcm.test_import_mri_data()
     test_umsfcm.test_local_membership()
+    test_umsfcm.test_global_membership()
+    test_umsfcm.test_combined_membership()
+    test_umsfcm.test_objective_function()
 
     # Get the results from test_segmentation_umsf_cmeans
     total_nb_passed += test_umsfcm.nb_passed
-    failures_list.append(('test_segmentation_umsf_cmeans', test_umsfcm.nb_failures))
+    failures_list.append(('test_segmentation_umsf_cmeans', test_umsfcm.nb_failures, test_umsfcm.nb_skipped))
 
-
-
-
-    print('Validation completed.')
+    total_nb_failed = sum([f[1] for f in failures_list])
+    total_nb_skipped = sum([f[2] for f in failures_list])
+    if total_nb_failed == 0:
+        print('No error encountered')
+    print('Validation completed')
 
     # Print the validation results in the CLI:
-    total_nb_failed = sum([f[1] for f in failures_list])
-    print('\n### Validation results:\n'
-          f'>> {total_nb_passed}/{total_nb_failed + total_nb_passed} tests passed.')
+    print('------------------')
+    print('### Validation results:\n'
+          f' {total_nb_passed}/{total_nb_failed + total_nb_skipped + total_nb_passed} tests passed')
     if total_nb_failed > 0:
         for failure in failures_list:
-            print(f'> {failure[0]}: {failure[1]} errors.')
+            print(f'-> {failure[0]}:\n'
+                  f'   {failure[1]} error{"s" if failure[1] > 1 else ""}\n'
+                  f'   {failure[2]} skipped')
 

@@ -138,8 +138,6 @@ class UMSFCM:
             print('Unhandled exception encountered. This should not happen.')
             raise
 
-
-
     def global_membership(self) -> (np.ndarray, np.ndarray):
         """
         Compute the global membership for every voxel of the MRI
@@ -162,19 +160,19 @@ class UMSFCM:
         distances = np.empty((voxels.size, self.clusters_data.size))
 
         # Compute the global memberships
+        fuzzifier = 2 if self.configuration.fuzzifier == 1 else self.configuration.fuzzifier
         for j, x_j in enumerate(voxels):
             # First, for each voxel, compute the distance to each cluster
             distances[j] = np.array(abs(x_j - self.clusters_data))
             sum_distances = np.sum(distances)
             for i, v_i in enumerate(self.clusters_data):
                 # Then, calculate the global membership of the voxel x_j for each cluster
-                global_memberships[j, i] = (1 /
-                                            max((distances[j, i] /
-                                                 max(sum_distances, 0.001, )) ** (
-                                                        2 / max(self.configuration.fuzzifier - 1, 0.001)
-                                                )
-                                                , 0.001)
-                                            )
+                if distances[j, i] == 0:
+                    global_memberships[j, i] = 1
+                else:
+                    global_memberships[j, i] = 1 / (distances[j, i] /
+                                                    sum_distances ** (2 / fuzzifier - 1)
+                                                    )
         return global_memberships, distances
 
     def combined_membership(self, global_memberships: np.ndarray, local_memberships: np.ndarray) -> np.ndarray:
@@ -201,10 +199,12 @@ class UMSFCM:
         # Calculate a product between the global and local memberships, and apply a modifier to them
         membership_products = np.array(global_memberships ** self.configuration.global_modifier
                                        * local_memberships ** self.configuration.local_modifier)
+
         # Compute the sum of the products
-        sum_products = np.sum(membership_products)
+        sum_products = np.sum(membership_products, axis=1)
+
         # Compute the combined membership by dividing each product by the sum of all products
-        return np.array(membership_products / sum_products)
+        return np.array(membership_products / sum_products[:, None])
 
     def objective_function(self, global_memberships: np.ndarray, distances: np.ndarray,
                            local_memberships: np.ndarray, weighted_data: np.ndarray) -> float:
@@ -345,7 +345,7 @@ class UMSFCM:
             current_iter += 1
 
         # Compute the segmentation from the combined memberships
-        self.segmentation = combined_memberships.min(axis=1).reshape(self.mri_data.shape)
+        self.segmentation = combined_memberships.max(axis=1).reshape(self.mri_data.shape)
 
         return self.segmentation, self.clusters_data
 
@@ -390,7 +390,7 @@ class UMSFCM:
                     value=final_array.flatten(),
                     isomin=1,
                     opacity=volume_opacity,
-                    colorscale=[[i/255, f'rgb({i},{i},{i})'] for i in range(256)]
+                    colorscale=[[i / 255, f'rgb({i},{i},{i})'] for i in range(256)]
                 )
             )
             fig.show()
