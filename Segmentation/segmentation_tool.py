@@ -1,4 +1,4 @@
-import validation_tests.validation
+from validation_tests.validation import validate_tests
 from source_code import configuration as cfg, logger as log
 from source_code.segmentation_umsf_cmeans import UMSFCM
 import argparse
@@ -22,21 +22,28 @@ if __name__ == "__main__":
                         help="The value of the threshold.")
     parser.add_argument("-s", "--spatial-rate", dest="spatial_rate", type=float,
                         help="The value of the spatial rate.")
+    parser.add_argument("-v", "--validation", dest="validation", type=bool,
+                        action=argparse.BooleanOptionalAction,
+                        help="Used to check if the functions are operating as they should.")
 
     args = parser.parse_args()
-    config = cfg.Configuration(mri=args.mri_path,
-                               out_dir=args.output_directory,
-                               nb_c=args.nb_clusters,
-                               q=args.local_modifier,
-                               p=args.global_modifier,
-                               fuzz=args.fuzzifier,
-                               thresh=args.threshold,
-                               sp_rate=args.spatial_rate)
-    config.setup()
-    print("### Starting the program with these settings ###" + '\n'
-          + str(config) + '\n')
-    segmentation = UMSFCM(config)
-    segmentation.import_mri_data()
-    segmentation.show_mri(axis=0, volume=True, volume_slice=46, volume_opacity=0.8,
-                          slider=False, all_slices=False, nb_rot90=0)
-    #segmentation.start_process()
+    if args.validation:
+        validate_tests()
+
+    else:
+        config = cfg.Configuration(mri=args.mri_path,
+                                   out_dir=args.output_directory,
+                                   nb_c=args.nb_clusters,
+                                   q=args.local_modifier,
+                                   p=args.global_modifier,
+                                   fuzz=args.fuzzifier,
+                                   thresh=args.threshold,
+                                   sp_rate=args.spatial_rate)
+        config.setup()
+        print("### Starting the program with these settings ###" + '\n'
+              + str(config) + '\n')
+        segmentation = UMSFCM(configuration=config, _debug=True)
+        segmentation.import_mri_data()
+        # segmentation.show_mri(axis=0, volume=False, volume_slice=0, volume_opacity=0.8,
+        #                       slider=False, all_slices=False, nb_rot90=0, histogram=False)
+        segmentation.start_process()

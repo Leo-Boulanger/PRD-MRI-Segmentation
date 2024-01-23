@@ -7,17 +7,19 @@ import time
 from plotly import express as xp
 from plotly import graph_objects as go
 import joblib
+import scipy
 import multiprocessing
 import sys
 
 
 class UMSFCM:
-    def __init__(self, configuration, logger=None) -> None:
-        self.clusters_data = np.empty(configuration.nb_clusters)
+    def __init__(self, configuration, logger=None, _debug: bool = False) -> None:
         self.configuration = configuration
         self.logger = logger
+        self.clusters_data = np.empty(configuration.nb_clusters)
         self.mri_data = None
         self.segmentation = None
+        self._debugging = _debug
 
     @staticmethod
     def remove_empty_areas(array: np.ndarray) -> np.ndarray:
@@ -63,8 +65,15 @@ class UMSFCM:
         # Remove empty slices
         cleaned_array = UMSFCM.remove_empty_areas(normalized_array)
 
+        #
+        if self._debugging:
+            print('## Debugging: downscaling array to 10%')
+            self.mri_data = scipy.ndimage.zoom(cleaned_array, (0.1, 0.1, 0.1))
+            print(f'## Debugging: final array shape: {self.mri_data.shape}')
+
         # Set the result to the object's attribute mri_data
-        self.mri_data = cleaned_array
+        else:
+            self.mri_data = cleaned_array
 
     def local_membership(self, mask_data: np.ndarray) -> (np.ndarray, np.ndarray):
         """
@@ -79,33 +88,57 @@ class UMSFCM:
         :return:    - a 1d numpy.ndarray of the local membership to each cluster
                     - a 1d numpy.ndarray of the weights
         """
+        try:
+            # Initialize the variables
+            nb_data = mask_data.size
+            nb_clusters = self.clusters_data.size
+            distances = np.empty((nb_clusters, nb_data))
+            is_min_distance = np.empty((nb_clusters, nb_data))
 
-        # Initialize the variables
-        nb_data = mask_data.size
-        nb_clusters = self.clusters_data.size
-        distances = np.empty((nb_clusters, nb_data))
-        mins = np.empty((nb_clusters, nb_data))
-        local_memberships = np.empty(nb_clusters)
-        weights = np.empty(nb_clusters)
+            # Compute the intensity distance between each neighbour and each cluster
+            # distances = {D_(iM_j) for all i in {0, ...nb_clusters)} | where D_(iM_j) = {abs(x_k - V_i)} for all k in M_j}
+            for i, v_i in enumerate(self.clusters_data):
+                for k, x_k in enumerate(mask_data):
+                    distances[i, k] = abs(x_k - v_i)
 
-        # Compute the intensity distance between each neighbour and each cluster
-        # distances = {D_(iM_j) for all i in {0, ...nb_clusters)} | where D_(iM_j) = {abs(x_k - V_i)} for all k in M_j}
-        for i, v_i in enumerate(self.clusters_data):
-            for k, x_k in enumerate(mask_data):
-                distances[i, k] = abs(x_k - v_i)
+            # If every voxel are equal to a cluster, then both local membership and
+            # weights are set to 1 at that cluster's ID:
+            for i, v_i in enumerate(self.clusters_data):
+                if np.all(distances[i] == 0):
+                    local_membership = np.zeros(nb_clusters)
+                    local_membership[i] = 1.0
+                    weights = np.zeros(nb_clusters)
+                    weights[i] = 1.0
+                    return local_membership, weights
 
-        # Search for each neighbour, the cluster it is closest to
-        for i in range(nb_clusters):
-            for k in range(nb_data):
-                mins[i, k] = 1 if distances[i, k] == np.min(distances[:, k]) else 0
+            # Search, for each neighbour, the cluster it is closest to
+            for i in range(nb_clusters):
+                for k in range(nb_data):
+                    is_min_distance[i, k] = 1 if distances[i, k] == np.min(distances[:, k]) else 0
 
-        # Compute, for each cluster, the ratio between the sum of its minimal distances
-        # and the sum of the minimal distances of all clusters
-        for i, v_i in enumerate(self.clusters_data):
-            local_memberships[i] = np.sum(v_i * mins[i]) / max(np.sum(distances * mins), 0.001)
-            weights = np.sum(distances[i] * mins[i]) / nb_data
+            # Compute, for each cluster, the ratio between the sum of its minimal distances
+            # and the sum of the minimal distances of all clusters
+            sum_minimal_distances = np.sum(distances * is_min_distance, axis=1)
+            total_sum_minimal_distances = np.sum(sum_minimal_distances)
+            local_memberships = sum_minimal_distances / total_sum_minimal_distances
+            # print('local: ', local_memberships)
+            deltas_to_center = sum_minimal_distances / nb_data
 
-        return local_memberships, weights
+            total_deltas_to_center = np.sum(deltas_to_center)
+            weights = deltas_to_center / total_deltas_to_center
+            # print('weights: ', weights)
+
+            return local_memberships, weights
+
+        except ZeroDivisionError:
+            print('Division by zero encountered.')
+            raise
+
+        except Exception:
+            print('Unhandled exception encountered. This should not happen.')
+            raise
+
+
 
     def global_membership(self) -> (np.ndarray, np.ndarray):
         """
@@ -227,30 +260,17 @@ class UMSFCM:
                 combined_memberships[:, i])
         return new_clusters
 
-    def worker_local_membership(self, local_memberships, weights, x):
-        print(local_memberships.flags)
-        local_memberships.setflags(write=1)
-        weights.setflags(write=1)
-        worker_time = time.time()
-        loop_id = x * self.mri_data.shape[0]
-        for y in range(self.mri_data.shape[1]):
-            for z in range(self.mri_data.shape[2]):
-                mask = self.mri_data[x, y, z].flatten()
-                local_memberships[loop_id], weights[loop_id] = self.local_membership(mask)
-                loop_id += 1
-        print(f"Time taken for mri_data[{x}, :, :]: {(time.time() - worker_time):0.2f}s ")
-
     def start_process(self):
         """
 
         :return:
         """
         print("Starting segmentation process...")
-        max_iter_debug = 4
+        max_iter_debug = 10
         current_iter = 1
 
-        cpu_count = multiprocessing.cpu_count()
-        print(f'Using {cpu_count} threads')
+        # cpu_count = multiprocessing.cpu_count()
+        # print(f'Using {cpu_count} threads')
 
         # Assertions
         print(self.mri_data.size)
@@ -266,21 +286,11 @@ class UMSFCM:
         print(f"MRI shape: {mri_shape}")
 
         while True:
-            print(f"## Iteration {current_iter} ##")
+            print(f"\n## Iteration {current_iter} ##")
 
             # Compute the local memberships
-
-            print(local_memberships[0])
-            total_time = time.time()
-            joblib.Parallel(n_jobs=int(multiprocessing.cpu_count()))(
-                joblib.delayed(self.worker_local_membership)(local_memberships, weights, x)
-                for x in range(mri_shape[0])
-            )
-            print(f'total time = {(time.time() - total_time):.2f}s')
-            print(local_memberships[0])
-
             loop_id = 0
-            total_time = time.time()
+            process_start_time = time.time()
             for x in range(mri_shape[0]):
                 tic = time.time()
                 print(f"computing [{x},:,:], time left: ", end='\r')
@@ -292,18 +302,22 @@ class UMSFCM:
                 toc = time.time()
                 remaining_time = (mri_shape[0] - (x + 1)) * (toc - tic)
                 print(f"computing [{x}, :, :], time left: {remaining_time:0.2f}s ", end='\r')
-
-            print(f'total time = {(time.time() - total_time):.2f}s')
-            print(local_memberships[0])
+            print(f'Local membership processing time = {(time.time() - process_start_time):.2f}s')
 
             # Compute the global memberships
+            process_start_time = time.time()
             global_memberships, distances = self.global_membership()
+            print(f'Global membership processing time = {(time.time() - process_start_time):.2f}s')
 
             # Compute the combined memberships
+            process_start_time = time.time()
             combined_memberships = self.combined_membership(global_memberships, local_memberships)
+            print(f'Combined membership processing time = {(time.time() - process_start_time):.2f}s')
 
             # Calculate the objective function
+            process_start_time = time.time()
             objective = self.objective_function(global_memberships, distances, local_memberships, weights)
+            print(f'Objective function processing time = {(time.time() - process_start_time):.2f}s')
 
             # If objective function is optimal, exit the loop
             if objective <= 1:
@@ -358,6 +372,7 @@ class UMSFCM:
         final_array = np.transpose(self.mri_data, (axis % 3, (1 + axis) % 3, (2 + axis) % 3))
         final_array = np.rot90(final_array, nb_rot90, (1, 2))
 
+        # Show the MRI in a 3D space using the plotly module
         if volume:
             if volume_slice > 0:
                 final_array = final_array[:volume_slice, :, :]
@@ -380,7 +395,7 @@ class UMSFCM:
             )
             fig.show()
 
-        # Show the MRI slices using the plotly module
+        # Show the MRI slices with a slider using the plotly module
         if slider:
             fig = xp.imshow(final_array, animation_frame=0, color_continuous_scale="gray")
             fig.show()
