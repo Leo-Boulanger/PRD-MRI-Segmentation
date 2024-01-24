@@ -11,7 +11,9 @@ def validate_tests():
     total_nb_passed = 0
     failures_list = []
 
+    # Check every test, and display any error encountered
     print('Errors:', end='\r')
+
     # Check the tests from test_segmentation_umsf_cmeans
     test_umsfcm = Test_UMSFCM()
     test_umsfcm.test_import_mri_data()
@@ -19,6 +21,7 @@ def validate_tests():
     test_umsfcm.test_global_membership()
     test_umsfcm.test_combined_membership()
     test_umsfcm.test_objective_function()
+    test_umsfcm.test_compute_new_clusters()
 
     # Get the results from test_segmentation_umsf_cmeans
     total_nb_passed += test_umsfcm.nb_passed

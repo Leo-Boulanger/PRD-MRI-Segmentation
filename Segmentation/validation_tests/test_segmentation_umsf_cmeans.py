@@ -15,6 +15,7 @@ class Test_UMSFCM:
         self.test_local_passed = False
         self.test_global_passed = False
         self.test_combined_passed = False
+        self.test_objective_passed = False
 
         # Data shared between the tests
         self.saved_test_data = {}
@@ -50,7 +51,7 @@ class Test_UMSFCM:
             # import_mri_data() will remove any empty slices, in any direction.
             # So, the first layer and the last column should be removed after the import.
 
-            # Delete the tempory NIfTI file saved previously
+            # Delete the temporary NIfTI file saved previously
             os.remove(self.config.mri_path)
 
             # Modifying tmp_mri_data without the empty slices
@@ -127,13 +128,6 @@ class Test_UMSFCM:
 
         """
         try:
-            # Initialize de variables
-            self.umsfcm.clusters_data = np.array([1, 154, 254])
-            self.umsfcm.mri_data = np.ones((3, 3, 3))
-            self.umsfcm.mri_data[:, :, 1] = 50
-            self.umsfcm.mri_data[:, :, 2] = 255
-            self.umsfcm.mri_data[:, 0, :] = 150
-
             # Compute the global memberships
             global_memberships, distances = self.umsfcm.global_membership()
 
@@ -141,7 +135,7 @@ class Test_UMSFCM:
             assert np.all(global_memberships <= 1)
             assert np.all(global_memberships >= 0)
             assert np.all(distances <= 255)
-            assert np.all(distances >= 10)
+            assert np.all(distances >= 0)
 
             # if the assertion passed:
             self.nb_passed += 1
@@ -216,6 +210,7 @@ class Test_UMSFCM:
 
                 # if the assertion passed:
                 self.nb_passed += 1
+                self.test_objective_passed = True
 
             except AssertionError:
                 self.nb_failures += 1
@@ -225,3 +220,32 @@ class Test_UMSFCM:
                 self.nb_failures += 1
                 print(e)
                 print('!> test_objective_function(): Unhandled exception. This should not happen.')
+
+    def test_compute_new_clusters(self):
+        """
+
+        """
+        if not self.test_objective_passed:
+            self.nb_skipped += 1
+            print('?> test_compute_new_clusters() skipped.')
+        else:
+            try:
+                # Compute the combined memberships
+                new_clusters = self.umsfcm.compute_new_clusters(self.saved_test_data['combined_membership'])
+
+                # Validate the results
+                assert new_clusters.shape == self.umsfcm.clusters_data.shape
+                assert np.all(new_clusters >= 0)
+                assert np.all(new_clusters <= 255)
+
+                # if the assertion passed:
+                self.nb_passed += 1
+
+            except AssertionError:
+                self.nb_failures += 1
+                print('!> test_compute_new_clusters(): One or more new clusters are negative or exceed the boundaries.')
+
+            except Exception as e:
+                self.nb_failures += 1
+                print(e)
+                print('!> test_compute_new_clusters(): Unhandled exception. This should not happen.')
