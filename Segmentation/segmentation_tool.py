@@ -45,7 +45,8 @@ if __name__ == "__main__":
         segmentation = UMSFCM(configuration=config)
         segmentation.import_mri_data()
         # segmentation.show_mri(axis=0, volume=False, volume_slice=0, volume_opacity=0.8,
-        #                       slider=False, all_slices=False, nb_rot90=0, histogram=False)
+        #                       slider=False, all_slices=False, nb_rot90=0, histogram=True)
+        # segmentation.histogram_peak_analysis()
+
         seg_result, clusters = segmentation.start_process()
-        print(seg_result)
         print(clusters)

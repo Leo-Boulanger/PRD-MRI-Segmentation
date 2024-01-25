@@ -6,7 +6,6 @@ import math
 import time
 from plotly import express as xp
 from plotly import graph_objects as go
-import scipy
 import sys
 
 
@@ -16,6 +15,7 @@ class UMSFCM:
         self.logger = logger
         self.clusters_data = np.empty(configuration.nb_clusters)
         self.mri_data = None
+        self.distances = None
         self.segmentation = None
         self._debugging = _debug
 
@@ -74,7 +74,7 @@ class UMSFCM:
         else:
             self.mri_data = cleaned_array
 
-    def local_membership(self, mask_data: np.ndarray) -> (np.ndarray, np.ndarray):
+    def local_membership(self, mask_ids: list) -> (np.ndarray, np.ndarray):
         """
         Compute the local membership values of a voxel using its neighbours and the cluster values,
         and compute the weights of the local membership values.
@@ -89,22 +89,15 @@ class UMSFCM:
         """
         try:
             # Initialize the variables
-            nb_data = mask_data.size
+            nb_data = len(mask_ids)
             nb_clusters = self.clusters_data.size
-            distances = np.empty((nb_clusters, nb_data))
-            is_min_distance = np.empty((nb_clusters, nb_data))
-
-            # Compute the intensity distance between each neighbour and each cluster
-            # distances = {D_(iM_j) for all i in {0, ...nb_clusters)}
-            #             where D_(iM_j) = {abs(x_k - V_i)} for all k in M_j}
-            for i, v_i in enumerate(self.clusters_data):
-                for k, x_k in enumerate(mask_data):
-                    distances[i, k] = abs(x_k - v_i)
+            distances = self.distances[mask_ids]
+            is_min_distance = np.empty((nb_data, nb_clusters))
 
             # If every voxel are equal to a cluster, then both local membership and
             # weights are set to 1 at that cluster's ID:
             for i, v_i in enumerate(self.clusters_data):
-                if np.all(distances[i] == 0):
+                if np.all(distances[:, i] == 0):
                     local_membership = np.zeros(nb_clusters)
                     local_membership[i] = 1.0
                     weights = np.zeros(nb_clusters)
@@ -114,19 +107,20 @@ class UMSFCM:
             # Search, for each neighbour, the cluster it is closest to
             for i in range(nb_clusters):
                 for k in range(nb_data):
-                    is_min_distance[i, k] = 1 if distances[i, k] == np.min(distances[:, k]) else 0
+                    is_min_distance[k, i] = 1 if distances[k, i] == np.min(distances[k, :]) else 0
 
             # Compute, for each cluster, the ratio between the sum of its minimal distances
             # and the sum of the minimal distances of all clusters
-            sum_minimal_distances = np.sum(distances * is_min_distance, axis=1)
+            sum_minimal_distances = np.sum(distances * is_min_distance, axis=0)
             total_sum_minimal_distances = np.sum(sum_minimal_distances)
             local_memberships = sum_minimal_distances / total_sum_minimal_distances
-            # print('local: ', local_memberships)
+
             deltas_to_center = sum_minimal_distances / nb_data
 
             total_deltas_to_center = np.sum(deltas_to_center)
+
+            # sys.exit(1)
             weights = deltas_to_center / total_deltas_to_center
-            # print('weights: ', weights)
 
             return local_memberships, weights
 
@@ -138,7 +132,7 @@ class UMSFCM:
             print('Unhandled exception encountered. This should not happen.')
             raise
 
-    def global_membership(self) -> (np.ndarray, np.ndarray):
+    def global_membership(self) -> np.ndarray:
         """
         Compute the global membership for every voxel of the MRI
         :return:    - a 2d numpy.ndarray of the global membership values for each voxel to each cluster
@@ -157,19 +151,11 @@ class UMSFCM:
         # Initialize the variables
         voxels = self.mri_data.flatten()
         global_memberships = np.empty((voxels.size, self.clusters_data.size))
-        distances = np.empty((voxels.size, self.clusters_data.size))
-
-        # Compute the distances
-        fuzzifier = 2 if self.configuration.fuzzifier == 1 else self.configuration.fuzzifier
-        process_start_time = time.time()
-        for j, x_j in enumerate(voxels):
-            # First, for each voxel, compute the distance to each cluster
-            distances[j] = np.array(abs(x_j - self.clusters_data))
-        print(f'Distances processing time = {(time.time() - process_start_time):.2f}s')
-
-        sum_distances = np.sum(distances)
 
         # Compute the global memberships
+        fuzzifier = 2 if self.configuration.fuzzifier == 1 else self.configuration.fuzzifier
+        sum_distances = np.sum(self.distances)
+
         process_start_time = time.time()
         nb_clusters = len(self.clusters_data)
         total_iteration = len(voxels) * nb_clusters
@@ -178,17 +164,17 @@ class UMSFCM:
             tic = time.time()
             for j in range(iteration_per_cluster):
                 # Then, calculate the global membership of the voxel x_j for each cluster
-                if distances[j, i] == 0:
+                if self.distances[j, i] == 0:
                     global_memberships[j, i] = 1
                 else:
-                    global_memberships[j, i] = 1 / (distances[j, i] /
+                    global_memberships[j, i] = 1 / (self.distances[j, i] /
                                                     sum_distances ** (2 / fuzzifier - 1)
                                                     )
             toc = time.time()
             remaining_time = (total_iteration - iteration_per_cluster * i) * (toc - tic)
             print(f"computing cluster {i}, time left: {remaining_time:0.2f}s ", end='\r')
         print(f'Global membership processing time = {(time.time() - process_start_time):.2f}s')
-        return global_memberships, distances
+        return global_memberships
 
     def combined_membership(self, global_memberships: np.ndarray, local_memberships: np.ndarray) -> np.ndarray:
         """
@@ -265,7 +251,6 @@ class UMSFCM:
                 where C is the number of clusters, and X the number of voxels.
         :return: a 1d numpy.ndarray with the new value of each cluster
         """
-
         # Initialize variables
         new_clusters = numpy.empty_like(self.clusters_data)
 
@@ -278,6 +263,45 @@ class UMSFCM:
                 new_clusters[i] = (np.sum(self.mri_data.flatten() * combined_memberships[:, i]) /
                                    sum_combined_memberships)
         return new_clusters
+
+    def histogram_peak_analysis(self, threshold: int = 25) -> np.ndarray:
+        histogram = np.histogram(self.mri_data, bins=255)[0]
+        clusters = np.zeros(self.configuration.nb_clusters)
+
+        # If nb_clusters is set to "-1", search automatically a number of cluster values
+        if self.configuration.nb_clusters == -1:
+            max_count = np.max(histogram)
+
+        # Else, search for a number of clusters set
+        # This is just a self-made cluster-finding algorithm, probably unoptimized
+        else:
+            values = np.copy(histogram)
+            for i in range(self.configuration.nb_clusters):
+                # Get the peak
+                max_count = np.max(values)
+                clusters[i] = np.argwhere(histogram == max_count)
+                max_id = np.argmax(values)
+
+                # Remove the values on the left side of the max count
+                previous_values = [max_count, max_count]
+                del_ids = [max_id]
+                for n in range(max_id, max(max_id-threshold, 0), -1):
+                    if np.all(previous_values < [values[n]]): break
+                    else:
+                        del_ids.append(n)
+                        previous_values[0] = previous_values[1]
+                        previous_values[1] = values[n]
+
+                # Remove the values on the right side of the max count
+                previous_values = [max_count, max_count]
+                for n in range(max_id, min(max_id+threshold, len(values))):
+                    if np.all(previous_values < [values[n]]): break
+                    else:
+                        del_ids.append(n)
+                        previous_values[0] = previous_values[1]
+                        previous_values[1] = values[n]
+                values = np.delete(values, del_ids)
+        return clusters
 
     def start_process(self) -> (np.ndarray, np.ndarray):
         """
@@ -297,13 +321,16 @@ class UMSFCM:
         print("Verifying data. Done: Data should be compatible.")
 
         print("Starting segmentation process...")
-        max_iter_debug = 10
+        # Timer to compute the total time of the process
+        segmentation_start_time = time.time()
+
+        max_iter_debug = 20
         current_iter = 1
 
-
-
         # Get clusters
-        self.clusters_data = np.random.randint(255, size=self.configuration.nb_clusters)
+        # self.clusters_data = np.sort(np.random.default_rng().choice(255, size=self.configuration.nb_clusters, replace=False))
+        self.clusters_data = self.histogram_peak_analysis()
+        print(f'Starting clusters: {self.clusters_data}')
 
         # Initialize variables
         local_memberships = np.empty((self.mri_data.size, self.clusters_data.size))
@@ -314,16 +341,32 @@ class UMSFCM:
         while True:
             print(f"\n## Iteration {current_iter} ##")
 
+            # Compute the distances
+            process_start_time = time.time()
+            self.distances = np.empty((self.mri_data.size, self.clusters_data.size))
+            for j, x_j in enumerate(self.mri_data.flatten()):
+                # First, for each voxel, compute the distance to each cluster
+                self.distances[j] = np.array(abs(x_j - self.clusters_data))
+            print(f'Distances processing time = {(time.time() - process_start_time):.2f}s')
+
             # Compute the local memberships
             loop_id = 0
             process_start_time = time.time()
+            center_offset_x = mri_shape[0] * mri_shape[1]
             for x in range(mri_shape[0]):
                 tic = time.time()
                 print(f"computing [{x},:,:], time left: ", end='\r')
                 for y in range(mri_shape[1]):
                     for z in range(mri_shape[2]):
-                        mask = self.mri_data[x, y, z].flatten()
-                        local_memberships[loop_id], weights[loop_id] = self.local_membership(mask)
+                        # Creating the mask array of the distances' addresses
+                        mask_ids = []
+                        for nx in range(-1, 2):
+                            for ny in range(-1, 2):
+                                for nz in range(-1, 2):
+                                    if 0 <= x+nx < mri_shape[0] and 0 <= y+ny < mri_shape[1] and 0 <= z+nz < mri_shape[2]:
+                                        dist_id = (x + nx) * center_offset_x + (y + ny) * mri_shape[1] + (z + nz)
+                                        mask_ids.append(dist_id)
+                        local_memberships[loop_id], weights[loop_id] = self.local_membership(mask_ids)
                         loop_id += 1
                 toc = time.time()
                 remaining_time = (mri_shape[0] - (x + 1)) * (toc - tic)
@@ -353,7 +396,7 @@ class UMSFCM:
             new_clusters = self.compute_new_clusters(combined_memberships)
 
             # If the threshold is set as float, convert it to an integer in [0, 255]
-            threshold = int(self.configuration.threshold * 255) if 0 < self.configuration.threshold < 1 \
+            threshold = max(int(self.configuration.threshold * 255), 1) if 0 < self.configuration.threshold < 1 \
                 else self.configuration.threshold
 
             # If the difference between old and new clusters is below the threshold, exit the loop
@@ -369,11 +412,15 @@ class UMSFCM:
                 break
 
             self.clusters_data = new_clusters
-            print(f"Iteration {current_iter} done.")
+            print(f'New clusters found: {new_clusters}')
+            print(f"Iteration {current_iter} completed.")
             current_iter += 1
 
         # Compute the segmentation from the combined memberships
         self.segmentation = combined_memberships.max(axis=1).reshape(self.mri_data.shape)
+
+        # Print the total process time
+        print(f'Total segmentation processing time = {(time.time() - segmentation_start_time):.2f}s')
 
         return self.segmentation, self.clusters_data
 
