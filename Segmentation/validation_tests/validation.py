@@ -1,6 +1,6 @@
 # from test_configuration import Test_configuration
 # from test_logger import Test_logger
-from validation_tests.test_segmentation_umsf_cmeans import Test_UMSFCM
+from validation_tests.test_segmentation_umsf_cmeans import TestUMSFCM
 
 
 def validate_tests():
@@ -15,13 +15,14 @@ def validate_tests():
     print('Errors:', end='\r')
 
     # Check the tests from test_segmentation_umsf_cmeans
-    test_umsfcm = Test_UMSFCM()
+    test_umsfcm = TestUMSFCM()
     test_umsfcm.test_import_mri_data()
     test_umsfcm.test_local_membership()
     test_umsfcm.test_global_membership()
     test_umsfcm.test_combined_membership()
     test_umsfcm.test_objective_function()
     test_umsfcm.test_compute_new_clusters()
+    test_umsfcm.test_start_process()
 
     # Get the results from test_segmentation_umsf_cmeans
     total_nb_passed += test_umsfcm.nb_passed
@@ -42,4 +43,3 @@ def validate_tests():
             print(f'-> {failure[0]}:\n'
                   f'   {failure[1]} error{"s" if failure[1] > 1 else ""}\n'
                   f'   {failure[2]} skipped')
-

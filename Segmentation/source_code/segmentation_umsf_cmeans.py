@@ -6,9 +6,7 @@ import math
 import time
 from plotly import express as xp
 from plotly import graph_objects as go
-import joblib
 import scipy
-import multiprocessing
 import sys
 
 
@@ -65,10 +63,11 @@ class UMSFCM:
         # Remove empty slices
         cleaned_array = UMSFCM.remove_empty_areas(normalized_array)
 
-        #
+        # Debug mode: use a smaller subset of the MRI data
         if self._debugging:
-            print('## Debugging: downscaling array to 10%')
-            self.mri_data = scipy.ndimage.zoom(cleaned_array, (0.1, 0.1, 0.1))
+            print('## Debugging: downscaling array to 20%')
+            new_shape = [int(d*0.25) for d in cleaned_array.shape]
+            self.mri_data = cleaned_array[:new_shape[0], :new_shape[1], :new_shape[2]]
             print(f'## Debugging: final array shape: {self.mri_data.shape}')
 
         # Set the result to the object's attribute mri_data
@@ -96,7 +95,8 @@ class UMSFCM:
             is_min_distance = np.empty((nb_clusters, nb_data))
 
             # Compute the intensity distance between each neighbour and each cluster
-            # distances = {D_(iM_j) for all i in {0, ...nb_clusters)} | where D_(iM_j) = {abs(x_k - V_i)} for all k in M_j}
+            # distances = {D_(iM_j) for all i in {0, ...nb_clusters)}
+            #             where D_(iM_j) = {abs(x_k - V_i)} for all k in M_j}
             for i, v_i in enumerate(self.clusters_data):
                 for k, x_k in enumerate(mask_data):
                     distances[i, k] = abs(x_k - v_i)
@@ -159,13 +159,24 @@ class UMSFCM:
         global_memberships = np.empty((voxels.size, self.clusters_data.size))
         distances = np.empty((voxels.size, self.clusters_data.size))
 
-        # Compute the global memberships
+        # Compute the distances
         fuzzifier = 2 if self.configuration.fuzzifier == 1 else self.configuration.fuzzifier
+        process_start_time = time.time()
         for j, x_j in enumerate(voxels):
             # First, for each voxel, compute the distance to each cluster
             distances[j] = np.array(abs(x_j - self.clusters_data))
-            sum_distances = np.sum(distances)
-            for i, v_i in enumerate(self.clusters_data):
+        print(f'Distances processing time = {(time.time() - process_start_time):.2f}s')
+
+        sum_distances = np.sum(distances)
+
+        # Compute the global memberships
+        process_start_time = time.time()
+        nb_clusters = len(self.clusters_data)
+        total_iteration = len(voxels) * nb_clusters
+        iteration_per_cluster = len(voxels)
+        for i, v_i in enumerate(self.clusters_data):
+            tic = time.time()
+            for j in range(iteration_per_cluster):
                 # Then, calculate the global membership of the voxel x_j for each cluster
                 if distances[j, i] == 0:
                     global_memberships[j, i] = 1
@@ -173,6 +184,10 @@ class UMSFCM:
                     global_memberships[j, i] = 1 / (distances[j, i] /
                                                     sum_distances ** (2 / fuzzifier - 1)
                                                     )
+            toc = time.time()
+            remaining_time = (total_iteration - iteration_per_cluster * i) * (toc - tic)
+            print(f"computing cluster {i}, time left: {remaining_time:0.2f}s ", end='\r')
+        print(f'Global membership processing time = {(time.time() - process_start_time):.2f}s')
         return global_memberships, distances
 
     def combined_membership(self, global_memberships: np.ndarray, local_memberships: np.ndarray) -> np.ndarray:
@@ -256,25 +271,36 @@ class UMSFCM:
 
         # V_i = sum_(j=1)^(nr*nc*ns)(u_(ij) ** m * x_j) / sum_(j=1)^(nr*nc*ns)(u_(ij) ** m)
         for i in range(new_clusters.size):
-            new_clusters[i] = sum(combined_memberships[:, i] * self.mri_data.flatten()) / sum(
-                combined_memberships[:, i])
+            sum_combined_memberships = np.sum(combined_memberships[:, i])
+            if sum_combined_memberships == 0:
+                new_clusters[i] = self.clusters_data[i]
+            else:
+                new_clusters[i] = (np.sum(self.mri_data.flatten() * combined_memberships[:, i]) /
+                                   sum_combined_memberships)
         return new_clusters
 
-    def start_process(self):
+    def start_process(self) -> (np.ndarray, np.ndarray):
         """
 
         :return:
         """
+        print("Verifying data...", end='\r')
+        # Assert MRI file content
+        try:
+            assert np.all(self.mri_data >= 0)
+            assert np.all(self.mri_data <= 255)
+        except AssertionError:
+            print("!> Some values in the NIfTI file exceed the boundaries [0, 255].")
+            # print(np.where(self.mri_data < 0))
+            print(self.mri_data[np.where(self.mri_data < 0)])
+            raise
+        print("Verifying data. Done: Data should be compatible.")
+
         print("Starting segmentation process...")
         max_iter_debug = 10
         current_iter = 1
 
-        # cpu_count = multiprocessing.cpu_count()
-        # print(f'Using {cpu_count} threads')
 
-        # Assertions
-        print(self.mri_data.size)
-        print(self.clusters_data.size)
 
         # Get clusters
         self.clusters_data = np.random.randint(255, size=self.configuration.nb_clusters)
@@ -305,9 +331,7 @@ class UMSFCM:
             print(f'Local membership processing time = {(time.time() - process_start_time):.2f}s')
 
             # Compute the global memberships
-            process_start_time = time.time()
             global_memberships, distances = self.global_membership()
-            print(f'Global membership processing time = {(time.time() - process_start_time):.2f}s')
 
             # Compute the combined memberships
             process_start_time = time.time()
@@ -321,18 +345,22 @@ class UMSFCM:
 
             # If objective function is optimal, exit the loop
             if objective <= 1:
-                print(f"Iteration {current_iter} done."
+                print(f"Iteration {current_iter} done.\n"
                       + "Optimal segmentation found.")
                 break
 
             # If not optimal, compute new clusters
             new_clusters = self.compute_new_clusters(combined_memberships)
 
+            # If the threshold is set as float, convert it to an integer in [0, 255]
+            threshold = int(self.configuration.threshold * 255) if 0 < self.configuration.threshold < 1 \
+                else self.configuration.threshold
+
             # If the difference between old and new clusters is below the threshold, exit the loop
-            if abs(np.mean(self.clusters_data) - np.mean(new_clusters)) <= self.configuration.threshold:
-                print(f"Iteration {current_iter} done."
-                      + "New clusters below threshold, "
-                      + "found segmentation should be optimal.")
+            if np.sum(np.abs(self.clusters_data - new_clusters)) <= threshold:
+                print(f"Iteration {current_iter} done.\n"
+                      + "New clusters below threshold,\n"
+                      + "The segmentation found should be optimal.")
                 break
 
             if current_iter + 1 > max_iter_debug:
@@ -356,12 +384,12 @@ class UMSFCM:
         Display the MRI
         :param axis: ID of the axis to iterate on (0: X, 1: Y, 2: Z)
         :param nb_rot90: number of times the MRI is rotated by 90 degrees
-        :param volume: display the MRI in a 3D space
-        :param volume_slice: display the MRI to the
-        :param slider: True (default): display layers one by one, using a slider to switch between them,
-                           False: display all layers at once
-        :param histogram: True: display a histogram of the MRI
-                          False (default): does not display the histogram
+        :param volume: if true, display the MRI in a 3D space
+        :param volume_slice: will display the 3D MRI until the slice at this number
+        :param volume_opacity: the amount of opacity of the 3D representation
+        :param slider: if true, display layers one by one, using a slider to switch between them,
+        :param all_slices: if true, display all slices next
+        :param histogram: if true, display a histogram of the MRI
         """
         if histogram:
             hist_data = self.mri_data.flatten()

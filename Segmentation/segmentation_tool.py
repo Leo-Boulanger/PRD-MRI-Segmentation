@@ -42,8 +42,10 @@ if __name__ == "__main__":
         config.setup()
         print("### Starting the program with these settings ###" + '\n'
               + str(config) + '\n')
-        segmentation = UMSFCM(configuration=config, _debug=True)
+        segmentation = UMSFCM(configuration=config)
         segmentation.import_mri_data()
         # segmentation.show_mri(axis=0, volume=False, volume_slice=0, volume_opacity=0.8,
         #                       slider=False, all_slices=False, nb_rot90=0, histogram=False)
-        segmentation.start_process()
+        seg_result, clusters = segmentation.start_process()
+        print(seg_result)
+        print(clusters)

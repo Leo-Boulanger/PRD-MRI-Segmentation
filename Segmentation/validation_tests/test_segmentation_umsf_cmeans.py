@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 
-class Test_UMSFCM:
+class TestUMSFCM:
     def __init__(self):
         # Variables used in validation.py
         self.nb_passed = 0
@@ -16,6 +16,7 @@ class Test_UMSFCM:
         self.test_global_passed = False
         self.test_combined_passed = False
         self.test_objective_passed = False
+        self.test_new_clusters_passed = False
 
         # Data shared between the tests
         self.saved_test_data = {}
@@ -80,6 +81,7 @@ class Test_UMSFCM:
             self.nb_failures += 1
             print(e)
             print('!> test_import_mri_data(): Unhandled exception. This should not happen.')
+            raise
 
     def test_local_membership(self):
         """
@@ -100,7 +102,9 @@ class Test_UMSFCM:
             for x in range(mri_shape[0]):
                 for y in range(mri_shape[1]):
                     for z in range(mri_shape[2]):
-                        mask = self.umsfcm.mri_data[max(x-1, 0):x+2, max(y-1, 0):y+2, max(z-1, 0):z+2].flatten()
+                        mask = self.umsfcm.mri_data[max(x - 1, 0):x + 2,
+                                                    max(y - 1, 0):y + 2,
+                                                    max(z - 1, 0):z + 2].flatten()
                         local_memberships[loop_id], weights[loop_id] = self.umsfcm.local_membership(mask)
                         loop_id += 1
 
@@ -122,6 +126,7 @@ class Test_UMSFCM:
             self.nb_failures += 1
             print(e)
             print('!> test_local_membership(): Unhandled exception. This should not happen.')
+            raise
 
     def test_global_membership(self):
         """
@@ -151,6 +156,7 @@ class Test_UMSFCM:
             self.nb_failures += 1
             print(e)
             print('!> test_global_membership(): Unhandled exception. This should not happen.')
+            raise
 
     def test_combined_membership(self):
         """
@@ -190,6 +196,7 @@ class Test_UMSFCM:
                 self.nb_failures += 1
                 print(e)
                 print('!> test_combined_membership(): Unhandled exception. This should not happen.')
+                raise
 
     def test_objective_function(self):
         """
@@ -220,6 +227,7 @@ class Test_UMSFCM:
                 self.nb_failures += 1
                 print(e)
                 print('!> test_objective_function(): Unhandled exception. This should not happen.')
+                raise
 
     def test_compute_new_clusters(self):
         """
@@ -234,12 +242,15 @@ class Test_UMSFCM:
                 new_clusters = self.umsfcm.compute_new_clusters(self.saved_test_data['combined_membership'])
 
                 # Validate the results
+                print(new_clusters)
+                print(self.umsfcm.clusters_data)
                 assert new_clusters.shape == self.umsfcm.clusters_data.shape
                 assert np.all(new_clusters >= 0)
                 assert np.all(new_clusters <= 255)
 
                 # if the assertion passed:
                 self.nb_passed += 1
+                self.test_new_clusters_passed = True
 
             except AssertionError:
                 self.nb_failures += 1
@@ -249,3 +260,30 @@ class Test_UMSFCM:
                 self.nb_failures += 1
                 print(e)
                 print('!> test_compute_new_clusters(): Unhandled exception. This should not happen.')
+                raise
+
+    def test_start_process(self):
+        # test the whole segmentation process on randomized arrays
+
+        if not self.test_new_clusters_passed:
+            self.nb_skipped += 1
+            print('?> test_start_process() skipped.')
+        else:
+            try:
+                segmentation, clusters = self.umsfcm.start_process()
+                assert segmentation.shape == self.umsfcm.mri_data.shape
+                assert clusters.shape == self.umsfcm.clusters_data.shape
+
+                # if the assertion passed:
+                self.nb_passed += 1
+
+            except AssertionError as ae:
+                self.nb_failures += 1
+                print('!> test_start_process():')
+                print(ae)
+
+            except Exception as e:
+                self.nb_failures += 1
+                print(e)
+                print('!> test_start_process(): Unhandled exception. This should not happen.')
+                raise
