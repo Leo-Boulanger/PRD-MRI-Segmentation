@@ -23,7 +23,7 @@ class TestUMSFCM:
 
         # Definition of the objects needed to execute the tests
         self.config = configuration.Configuration(nb_c=3, sp_rate=0.5, q=2.0, p=2.0,
-                                                  fuzz=2.0, thresh=0.5)
+                                                  fuzz=2.0, thresh=1)
         self.umsfcm = segmentation_umsf_cmeans.UMSFCM(self.config)
 
     def test_import_mri_data(self):
@@ -54,8 +54,8 @@ class TestUMSFCM:
 
             # Delete the temporary NIfTI file saved previously
             os.remove(self.config.mri_path)
-
-            # Modifying tmp_mri_data without the empty slices
+            #
+            # # Modifying tmp_mri_data without the empty slices
             tmp_mri_data = np.delete(tmp_mri_data, 0, axis=0)
             tmp_mri_data = np.delete(tmp_mri_data, 4, axis=2)
 
@@ -89,28 +89,39 @@ class TestUMSFCM:
         """
         try:
             self.umsfcm.clusters_data = np.array([1, 154, 254])
-            self.umsfcm.mri_data = np.ones((3, 3, 3))
+            self.umsfcm.mri_data = np.zeros((10, 20, 30))
             self.umsfcm.mri_data[:, :, 1] = 50
             self.umsfcm.mri_data[:, :, 2] = 255
             self.umsfcm.mri_data[:, 0, :] = 150
             mri_shape = self.umsfcm.mri_data.shape
 
+            self.umsfcm.distances = np.empty((self.umsfcm.mri_data.size, self.umsfcm.clusters_data.size))
+            for j, x_j in enumerate(self.umsfcm.mri_data.flatten()):
+                # First, for each voxel, compute the distance to each cluster
+                self.umsfcm.distances[j] = np.array(abs(x_j - self.umsfcm.clusters_data))
+
             local_memberships = np.zeros((self.umsfcm.mri_data.size, self.umsfcm.clusters_data.size))
             weights = np.zeros((self.umsfcm.mri_data.size, self.umsfcm.clusters_data.size))
 
-            loop_id = 0
+            current_voxel = 0
+            offset_x = mri_shape[1] * mri_shape[2]
+            mask_2d = np.arange(-4, 5)
+            mask_2d[:3] -= mri_shape[2]
+            mask_2d[6:] += mri_shape[2]
+            mask_ids = np.tile(mask_2d, 3)
+            mask_ids[:9] -= offset_x
+            mask_ids[18:] += offset_x
             for x in range(mri_shape[0]):
                 for y in range(mri_shape[1]):
                     for z in range(mri_shape[2]):
-                        mask = self.umsfcm.mri_data[max(x - 1, 0):x + 2,
-                                                    max(y - 1, 0):y + 2,
-                                                    max(z - 1, 0):z + 2].flatten()
-                        local_memberships[loop_id], weights[loop_id] = self.umsfcm.local_membership(mask)
-                        loop_id += 1
+                        current_mask = mask_ids[np.logical_and(0 <= mask_ids, mask_ids < self.umsfcm.mri_data.size)]
+                        local_memberships[current_voxel], weights[current_voxel] = self.umsfcm.local_membership(current_mask)
+                        current_voxel += 1
+                        mask_ids += 1
 
             # Validate the results
             for voxel_local_membership in local_memberships:
-                assert np.sum(voxel_local_membership) == 1
+                assert 0.99999 <= np.sum(voxel_local_membership) <= 1.00001
 
             # if the assertion passed:
             self.nb_passed += 1
@@ -120,6 +131,7 @@ class TestUMSFCM:
 
         except AssertionError:
             self.nb_failures += 1
+            print(voxel_local_membership, np.sum(voxel_local_membership))
             print('!> test_local_membership(): The local membership values are not correctly computed.')
 
         except Exception as e:
@@ -134,19 +146,16 @@ class TestUMSFCM:
         """
         try:
             # Compute the global memberships
-            global_memberships, distances = self.umsfcm.global_membership()
+            global_memberships = self.umsfcm.global_membership()
 
             # Validate the results
             assert np.all(global_memberships <= 1)
             assert np.all(global_memberships >= 0)
-            assert np.all(distances <= 255)
-            assert np.all(distances >= 0)
 
             # if the assertion passed:
             self.nb_passed += 1
             self.test_global_passed = True
             self.saved_test_data['global_membership'] = global_memberships
-            self.saved_test_data['distances'] = distances
 
         except AssertionError:
             self.nb_failures += 1
@@ -209,7 +218,7 @@ class TestUMSFCM:
             try:
                 # Compute the combined memberships
                 objective = self.umsfcm.objective_function(self.saved_test_data['global_membership'],
-                                                           self.saved_test_data['distances'],
+                                                           self.umsfcm.distances,
                                                            self.saved_test_data['local_membership'],
                                                            self.saved_test_data['weights'])
                 # Validate the results
@@ -268,7 +277,7 @@ class TestUMSFCM:
             print('?> test_start_process() skipped.')
         else:
             try:
-                # self.umsfcm.mri_data = np.random.randint(255, size=(10, 10, 10))
+                self.umsfcm.mri_data = np.random.randint(255, size=(20, 20, 20))
                 segmentation, clusters = self.umsfcm.start_process()
                 assert segmentation.shape == self.umsfcm.mri_data.shape
                 assert clusters.shape == self.umsfcm.clusters_data.shape

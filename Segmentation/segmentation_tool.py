@@ -2,6 +2,7 @@ from validation_tests.validation import validate_tests
 from source_code import configuration as cfg, logger as log
 from source_code.segmentation_umsf_cmeans import UMSFCM
 import argparse
+import nibabel as nib
 import numpy as np
 
 if __name__ == "__main__":
@@ -46,7 +47,12 @@ if __name__ == "__main__":
         segmentation.import_mri_data()
         # segmentation.show_mri(axis=0, volume=False, volume_slice=0, volume_opacity=0.8,
         #                       slider=False, all_slices=False, nb_rot90=0, histogram=True)
-        # segmentation.histogram_peak_analysis()
-
         seg_result, clusters = segmentation.start_process()
+
+        try:
+            image_segmentation = nib.Nifti1Image(seg_result, affine=segmentation.mri_affine, header=segmentation.mri_header)
+            nib.save(image_segmentation, "res_result_test.nii.gz")
+        except:
+            print('################ Error ')
+
         print(clusters)
