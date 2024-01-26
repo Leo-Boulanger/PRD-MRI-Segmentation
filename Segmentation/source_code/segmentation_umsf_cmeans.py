@@ -275,7 +275,7 @@ class UMSFCM:
         return new_clusters
 
     def histogram_peak_analysis(self, threshold: int = 25) -> np.ndarray:
-        histogram = np.histogram(self.mri_data, bins=255)[0]
+        histogram = np.histogram(self.mri_data, bins=int(self.mri_data.max() - self.mri_data.min()))[0]
         clusters = np.zeros(self.configuration.nb_clusters)
 
         # If nb_clusters is set to "-1", search automatically a number of cluster values
@@ -289,7 +289,7 @@ class UMSFCM:
             for i in range(self.configuration.nb_clusters):
                 # Get the peak
                 max_count = np.max(values)
-                clusters[i] = np.argwhere(histogram == max_count)
+                clusters[i] = np.argwhere(values == max_count)[0]
                 max_id = np.argmax(values)
 
                 # Remove the values on the left side of the max count
@@ -390,8 +390,7 @@ class UMSFCM:
             new_clusters = self.compute_new_clusters(combined_memberships)
 
             # If the threshold is set as float, convert it to an integer in [0, 255]
-            threshold = max(int(self.configuration.threshold * 255), 1) if 0 < self.configuration.threshold < 1 \
-                else self.configuration.threshold
+            threshold = self.configuration.threshold if self.configuration.threshold > 0 else 1
 
             # If the difference between old and new clusters is below the threshold, exit the loop
             if np.sum(np.abs(self.clusters_data - new_clusters)) <= threshold:
@@ -411,7 +410,7 @@ class UMSFCM:
             current_iter += 1
 
         # Compute the segmentation from the combined memberships
-        self.segmentation = combined_memberships.max(axis=1).reshape(self.mri_data.shape)
+        self.segmentation = combined_memberships.argmax(axis=1).reshape(self.mri_data.shape)
 
         # Print the total process time
         print(f'Total segmentation processing time = {(time.time() - segmentation_start_time):.2f}s')

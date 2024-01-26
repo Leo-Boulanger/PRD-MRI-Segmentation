@@ -23,7 +23,7 @@ class TestUMSFCM:
 
         # Definition of the objects needed to execute the tests
         self.config = configuration.Configuration(nb_c=3, sp_rate=0.5, q=2.0, p=2.0,
-                                                  fuzz=2.0, thresh=0.2)
+                                                  fuzz=2.0, thresh=0.5)
         self.umsfcm = segmentation_umsf_cmeans.UMSFCM(self.config)
 
     def test_import_mri_data(self):
@@ -242,8 +242,6 @@ class TestUMSFCM:
                 new_clusters = self.umsfcm.compute_new_clusters(self.saved_test_data['combined_membership'])
 
                 # Validate the results
-                print(new_clusters)
-                print(self.umsfcm.clusters_data)
                 assert new_clusters.shape == self.umsfcm.clusters_data.shape
                 assert np.all(new_clusters >= 0)
                 assert np.all(new_clusters <= 255)
@@ -270,9 +268,17 @@ class TestUMSFCM:
             print('?> test_start_process() skipped.')
         else:
             try:
+                # self.umsfcm.mri_data = np.random.randint(255, size=(10, 10, 10))
                 segmentation, clusters = self.umsfcm.start_process()
                 assert segmentation.shape == self.umsfcm.mri_data.shape
                 assert clusters.shape == self.umsfcm.clusters_data.shape
+
+                print('Original "MRI" data:')
+                print(self.umsfcm.mri_data)
+                print('Segmentation obtained:')
+                print(segmentation)
+                print('Final clusters obtained:')
+                print(clusters)
 
                 # if the assertion passed:
                 self.nb_passed += 1
