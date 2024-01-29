@@ -273,23 +273,30 @@ class UMSFCM:
                                    sum_combined_memberships)
         return new_clusters
 
-    def histogram_peak_analysis(self, threshold: int = 25) -> np.ndarray:
-        histogram = np.histogram(self.mri_data, bins=int(self.mri_data.max() - self.mri_data.min()))[0]
+    def histogram_peak_analysis(self, threshold: int = 15) -> np.ndarray:
+        histogram = np.histogram(self.mri_data, bins=int(self.mri_data.max() - self.mri_data.min()))
         clusters = np.zeros(self.configuration.nb_clusters)
 
         # If nb_clusters is set to "-1", search automatically a number of cluster values
+        # TO BE IMPLEMENTED
         if self.configuration.nb_clusters == -1:
-            max_count = np.max(histogram)
+            max_count = np.max(histogram[0])
 
         # Else, search for a number of clusters set
         # This is just a self-made cluster-finding algorithm, probably unoptimized
         else:
-            values = np.copy(histogram)
+            counts = histogram[0]
+            ids = histogram[1]
+            values = np.vstack([counts, ids])
             for i in range(self.configuration.nb_clusters):
-                # Get the peak
-                max_count = np.max(values)
-                clusters[i] = np.argwhere(values == max_count)[0]
-                max_id = np.argmax(values)
+                if values.size == 0:
+                    ids = np.setdiff1d(histogram[1], clusters)
+                    values = histogram[:, ids]
+                    
+                # Get the peak (id with max count)
+                max_count = np.max(values[0])
+                max_id = np.argmax(values[0])
+                clusters[i] = values[np.argmax(values[0])]
 
                 # Remove the values on the left side of the max count
                 previous_values = [max_count, max_count]
@@ -309,7 +316,7 @@ class UMSFCM:
                         del_ids.append(n)
                         previous_values[0] = previous_values[1]
                         previous_values[1] = values[n]
-                values = np.delete(values, del_ids)
+                values = np.delete(values, del_ids, axis=1)
         return np.sort(clusters)
 
     def start_process(self) -> (np.ndarray, np.ndarray):
