@@ -4,6 +4,8 @@ Reprise_existant/
 Rédactions/
 *.png
 *.pdf
+*.nii.gz
+*.nii
 
 # Default GIT Python .gitignore :
 # Byte-compiled / optimized / DLL files

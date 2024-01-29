@@ -1,3 +1,5 @@
+import os.path
+
 from validation_tests.validation import validate_tests
 from source_code import configuration as cfg, logger as log
 from source_code.segmentation_umsf_cmeans import UMSFCM
@@ -51,7 +53,10 @@ if __name__ == "__main__":
 
         try:
             image_segmentation = nib.Nifti1Image(seg_result, affine=segmentation.mri_affine, header=segmentation.mri_header)
-            nib.save(image_segmentation, "res_result_test.nii.gz")
+            mri_filename = os.path.basename(config.mri_path).split('.')[0]
+            output_filename = f"segmentation_{mri_filename}_{config.nb_clusters}-clusters.nii.gz"
+            output_path = os.join(config.output_directory, output_filename)
+            nib.save(image_segmentation, output_path)
         except:
             print('################ Error ')
 
