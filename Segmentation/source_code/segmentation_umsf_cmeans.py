@@ -286,7 +286,7 @@ class UMSFCM:
         # This is just a self-made cluster-finding algorithm, probably unoptimized
         else:
             counts = histogram[0]
-            ids = histogram[1]
+            ids = histogram[1][:-1]
             values = np.vstack([counts, ids])
             for i in range(self.configuration.nb_clusters):
                 if values.size == 0:
@@ -296,26 +296,26 @@ class UMSFCM:
                 # Get the peak (id with max count)
                 max_count = np.max(values[0])
                 max_id = np.argmax(values[0])
-                clusters[i] = values[np.argmax(values[0])]
+                clusters[i] = values[1][np.argmax(values[0])]
 
                 # Remove the values on the left side of the max count
                 previous_values = [max_count, max_count]
                 del_ids = [max_id]
                 for n in range(max_id, max(max_id-threshold, 0), -1):
-                    if np.all(previous_values < [values[n]]): break
+                    if np.all(previous_values < [values[0][n]]): break
                     else:
                         del_ids.append(n)
                         previous_values[0] = previous_values[1]
-                        previous_values[1] = values[n]
+                        previous_values[1] = values[0][n]
 
                 # Remove the values on the right side of the max count
                 previous_values = [max_count, max_count]
-                for n in range(max_id, min(max_id+threshold, len(values))):
-                    if np.all(previous_values < [values[n]]): break
+                for n in range(max_id, min(max_id+threshold, len(values[0]))):
+                    if np.all(previous_values < [values[0][n]]): break
                     else:
                         del_ids.append(n)
                         previous_values[0] = previous_values[1]
-                        previous_values[1] = values[n]
+                        previous_values[1] = values[0][n]
                 values = np.delete(values, del_ids, axis=1)
         return np.sort(clusters)
 

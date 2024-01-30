@@ -57,7 +57,8 @@ if __name__ == "__main__":
             output_filename = f"segmentation_{mri_filename}_{config.nb_clusters}-clusters.nii.gz"
             output_path = os.join(config.output_directory, output_filename)
             nib.save(image_segmentation, output_path)
-        except:
+        except Exception as e:
             print('################ Error ')
+            print(e)
 
         print(clusters)
