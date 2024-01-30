@@ -28,6 +28,13 @@ def validate_tests():
     total_nb_passed += test_umsfcm.nb_passed
     failures_list.append(('test_segmentation_umsf_cmeans', test_umsfcm.nb_failures, test_umsfcm.nb_skipped))
 
+    # Check the tests from test_configuration
+    # TO BE IMPLEMENTED
+
+    # Check the tests from test_logger
+    # TO BE IMPLEMENTED
+
+    # Compute the validation results
     total_nb_failed = sum([f[1] for f in failures_list])
     total_nb_skipped = sum([f[2] for f in failures_list])
     if total_nb_failed == 0:

@@ -9,9 +9,9 @@ import nibabel as nib
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MRI segmentation tool using a modified spatial fuzzy c-means method.")
     parser.add_argument("-i", "--input-file", dest="mri_path", type=str,
-                        help="Path to the MRI file. (should be .nii or .nii.gz)")
+                        help="Path to the MRI file. (Should be .nii or .nii.gz)")
     parser.add_argument("-o", "--output-dir", dest="output_directory", type=str,
-                        help="Path where to write the output of the program.")
+                        help="Path where to write the output of the program. (Must be a folder)")
     parser.add_argument("-n", "--nb-clusters", dest="nb_clusters", type=int,
                         help="The number of clusters to search.")
     parser.add_argument("-q", dest="local_modifier", type=float,
@@ -26,16 +26,17 @@ if __name__ == "__main__":
                         help="The value of the spatial rate.")
     parser.add_argument("-v", "--validation", dest="validation", type=bool,
                         action=argparse.BooleanOptionalAction,
-                        help="Used to check if the functions are operating as they should.")
+                        help="Used to check if the functions are operating as they should. "
+                             "Will overwrite any other argument.")
     parser.add_argument("--get-cropped-image", dest="get_cropped_image", type=bool,
                         action=argparse.BooleanOptionalAction,
                         help="Export a NIfTI file of the cropped image.")
-
+    # Parse the arguments
     args = parser.parse_args()
-    if args.validation:
-        validate_tests()
 
-    else:
+    if args.validation:  # If the program is launched for validation, run the tests validation only
+        validate_tests()
+    else:                # Otherwise, initialize the variables for the segmentation
         config = cfg.Configuration(mri=args.mri_path,
                                    out_dir=args.output_directory,
                                    nb_c=args.nb_clusters,
