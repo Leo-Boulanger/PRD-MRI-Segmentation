@@ -289,8 +289,8 @@ class UMSFCM:
             values = np.vstack([counts, ids])
             for i in range(self.configuration.nb_clusters):
                 if values.size == 0:
-                    ids = np.setdiff1d(histogram[1], clusters)
-                    values = histogram[:, ids]
+                    ids = np.setdiff1d(histogram[1][:-1], clusters).astype(int)
+                    values = np.vstack([histogram[0][ids], histogram[1][ids]])
 
                 # Get the peak (id with max count)
                 max_count = np.max(values[0])
