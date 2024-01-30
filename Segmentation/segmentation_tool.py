@@ -5,7 +5,6 @@ from source_code import configuration as cfg, logger as log
 from source_code.segmentation_umsf_cmeans import UMSFCM
 import argparse
 import nibabel as nib
-import numpy as np
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MRI segmentation tool using a modified spatial fuzzy c-means method.")
@@ -28,6 +27,9 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--validation", dest="validation", type=bool,
                         action=argparse.BooleanOptionalAction,
                         help="Used to check if the functions are operating as they should.")
+    parser.add_argument("--get-cropped-image", dest="get_cropped_image", type=bool,
+                        action=argparse.BooleanOptionalAction,
+                        help="Export a NIfTI file of the cropped image.")
 
     args = parser.parse_args()
     if args.validation:
@@ -49,13 +51,22 @@ if __name__ == "__main__":
         segmentation.import_mri_data()
         # segmentation.show_mri(axis=0, volume=False, volume_slice=0, volume_opacity=0.8,
         #                       slider=False, all_slices=False, nb_rot90=0, histogram=True)
+        if args.get_cropped_image:
+            image_cropped = nib.Nifti1Image(segmentation.mri_data, affine=segmentation.mri_affine,
+                                            header=segmentation.mri_header)
+            mri_filename = os.path.basename(config.mri_path).split('.')[0]
+            output_filename = f"main_{mri_filename}.nii.gz"
+            output_path = os.path.join(config.output_directory, output_filename)
+            nib.save(image_cropped, output_path)
+
         seg_result, clusters = segmentation.start_process()
 
         try:
-            image_segmentation = nib.Nifti1Image(seg_result, affine=segmentation.mri_affine, header=segmentation.mri_header)
+            image_segmentation = nib.Nifti1Image(seg_result, affine=segmentation.mri_affine,
+                                                 header=segmentation.mri_header)
             mri_filename = os.path.basename(config.mri_path).split('.')[0]
             output_filename = f"segmentation_{mri_filename}_{config.nb_clusters}-clusters.nii.gz"
-            output_path = os.join(config.output_directory, output_filename)
+            output_path = os.path.join(config.output_directory, output_filename)
             nib.save(image_segmentation, output_path)
         except Exception as e:
             print('################ Error ')

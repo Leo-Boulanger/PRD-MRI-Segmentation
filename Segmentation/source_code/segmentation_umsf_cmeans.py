@@ -6,14 +6,13 @@ import math
 import time
 from plotly import express as xp
 from plotly import graph_objects as go
-import sys
 
 
 class UMSFCM:
     def __init__(self, configuration, logger=None, _debug: bool = False) -> None:
         self.configuration = configuration
         self.logger = logger
-        self.clusters_data = np.empty(configuration.nb_clusters)
+        self.clusters_data = None
         self.mri_data = None
         self.distances = None
         self.segmentation = None
@@ -71,7 +70,7 @@ class UMSFCM:
         # Debug mode: use a smaller subset of the MRI data
         if self._debugging:
             print('## Debugging: downscaling array to 20%')
-            new_shape = [int(d*0.25) for d in cleaned_array.shape]
+            new_shape = [int(d * 0.25) for d in cleaned_array.shape]
             self.mri_data = cleaned_array[:new_shape[0], :new_shape[1], :new_shape[2]]
             print(f'## Debugging: final array shape: {self.mri_data.shape}')
 
@@ -292,7 +291,7 @@ class UMSFCM:
                 if values.size == 0:
                     ids = np.setdiff1d(histogram[1], clusters)
                     values = histogram[:, ids]
-                    
+
                 # Get the peak (id with max count)
                 max_count = np.max(values[0])
                 max_id = np.argmax(values[0])
@@ -301,8 +300,9 @@ class UMSFCM:
                 # Remove the values on the left side of the max count
                 previous_values = [max_count, max_count]
                 del_ids = [max_id]
-                for n in range(max_id, max(max_id-threshold, 0), -1):
-                    if np.all(previous_values < [values[0][n]]): break
+                for n in range(max_id, max(max_id - threshold, 0), -1):
+                    if np.all(previous_values < [values[0][n]]):
+                        break
                     else:
                         del_ids.append(n)
                         previous_values[0] = previous_values[1]
@@ -310,8 +310,9 @@ class UMSFCM:
 
                 # Remove the values on the right side of the max count
                 previous_values = [max_count, max_count]
-                for n in range(max_id, min(max_id+threshold, len(values[0]))):
-                    if np.all(previous_values < [values[0][n]]): break
+                for n in range(max_id, min(max_id + threshold, len(values[0]))):
+                    if np.all(previous_values < [values[0][n]]):
+                        break
                     else:
                         del_ids.append(n)
                         previous_values[0] = previous_values[1]
