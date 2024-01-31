@@ -23,7 +23,7 @@ class TestUMSFCM:
 
         # Definition of the objects needed to execute the tests
         self.config = configuration.Configuration(nb_c=3, sp_rate=0.5, q=2.0, p=2.0,
-                                                  fuzz=2.0, thresh=1)
+                                                  fuzz=2.0, thresh=3)
         self.umsfcm = segmentation_umsf_cmeans.UMSFCM(self.config)
 
     def test_import_mri_data(self):
