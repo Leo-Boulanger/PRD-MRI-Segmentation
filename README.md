@@ -34,7 +34,7 @@ python segmentation_tool.py [-h] [-i MRI_PATH] [-o OUTPUT_DIRECTORY] [-n NB_CLUS
 
 Options:
 
-  -h, --help            show this help message and exit
+  -h, --help show this help message and exit
   
   -i MRI_PATH, --input-file MRI_PATH
   <br>Path to the MRI file. (Should be .nii or .nii.gz)
@@ -58,7 +58,7 @@ Options:
   <br>Recommended value: 2 if 3~4 clusters, up to 5 if 20+ clusters
                         
   -t THRESHOLD, --threshold THRESHOLD
-  <br>When the difference between the newly computed clusters and the previous ones are below this THRESHOLD, the segmentation will be supposed optimal and the processus will end.
+  <br>When the difference between the newly computed clusters and the previous ones are below this THRESHOLD, the segmentation will be supposed optimal and the process will end.
   <br>Recommended value: half the number of clusters (ex: 4 clusters => threshold set to 2)
                         
   -s SPATIAL_RATE, --spatial-rate SPATIAL_RATE
