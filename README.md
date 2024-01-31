@@ -70,3 +70,9 @@ Options:
                         
   --get-cropped-image, --no-get-cropped-image
   <br>Export a NIfTI file of the cropped image, which can be used in ITK_SNAP as a main image.
+
+### Example
+
+`python segmentation_tool.py -i caille.nii -o . -n 4 -t 2 -q 2 -p 2 -s 0.5 -f 2`
+
+
