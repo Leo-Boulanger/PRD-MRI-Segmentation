@@ -1,13 +1,19 @@
-# Pre-development ignores :
+# Pre-development ignores:
 Pre_dev_segmentation/
 Reprise_existant/
 Rédactions/
+
+# Files ignores:
 *.png
 *.pdf
 *.nii.gz
 *.nii
+notes_performances_segmentations.txt
 
-# Default GIT Python .gitignore :
+# Other folders ignores:
+.idea
+
+# Default GIT Python .gitignore:
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
